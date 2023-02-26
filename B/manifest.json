@@ -1,0 +1,35 @@
+{
+    "format_version": 2,
+    "header": {
+        "description": "By EarthDLL,保留所有权利",
+        "name": "服务器管理框架(基于GameTest框架)1.19+",
+        "uuid": "9472c503-5a92-43c8-7ddf-0492de2362d7",
+        "version": [1, 0, 0],
+        "min_engine_version": [1, 19, 0]
+    },
+    "modules": [
+        {
+            "description": "By EarthDLL,保留所有权利",
+            "type": "script",
+            "language":"javascript",
+            "uuid": "317b0654-acf7-903f-8639-9dd226ee395f",
+            "version": [1, 0, 0],
+            "entry": "scripts/Main.js"
+        }
+    ],
+    "dependencies": [
+      {
+        "module_name": "@minecraft/server",
+        "version": "1.1.0-beta"
+      },
+      {
+        "module_name": "@minecraft/server-ui",
+        "version": "1.0.0-beta"
+      }/*,
+      {
+        "module_name": "@minecraft/server-net",
+        "version": "1.0.0-beta"
+      }*/
+    ]
+    
+}
