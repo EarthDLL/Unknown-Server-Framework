@@ -1,0 +1,166 @@
+{
+  "format_version": "1.16.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "minecraft:bat",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "is_experimental": false
+    },
+    "component_groups": {
+        "earthdll:not_show":{
+        "minecraft:scale": {
+          "value": 0.2
+        }
+        },
+        "earthdll:show":{
+        "minecraft:scale": {
+          "value": 1
+        }
+        },
+        "earthdll:flowing_text":{
+              "minecraft:behavior.look_at_player": {
+        "priority": 0,
+        "look_distance": 12.0,
+        "probability": 1
+      },
+        "minecraft:friction_modifier":{
+            "value": 0.0
+        },
+              "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:movement": {
+        "value": 0
+      },
+            "minecraft:damage_sensor": {
+        "triggers": {
+          "cause": "all",
+          "deals_damage": false
+        }
+      },
+            "minecraft:physics": {
+            "has_gravity":false,
+            "has_collision":false
+      },
+            "minecraft:breathable": {
+            "total_supply": 15,
+            "suffocate_time": 0,
+            "breathes_air": true,
+            "breathes_water": true,
+            "breathes_solids":true
+            },
+            "minecraft:nameable": {
+                "always_show": true,
+                "allow_name_tag_renaming": false
+            }
+        },
+        "minecraft:base":{
+"minecraft:damage_sensor": {
+        "triggers": {
+          "cause": "fall",
+          "deals_damage": false
+        }
+      },
+      "minecraft:hurt_on_condition": {
+        "damage_conditions": [
+          {
+            "filters": { "test": "in_lava", "subject": "self", "operator": "==", "value": true },
+            "cause": "lava",
+            "damage_per_tick": 4
+          }
+        ]
+      },
+      "minecraft:movement": {
+        "value": 0.1
+      },
+      "minecraft:navigation.float": {	
+        "can_path_over_water": true	
+      },
+      "minecraft:movement.basic": {
+      },
+      "minecraft:jump.static": {
+      },
+      "minecraft:despawn": {
+        "despawn_from_distance": {}
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:behavior.float_wander": {
+        "xz_dist": 10,
+        "y_dist": 7,
+        "y_offset": -2.0,
+        "random_reselect": true,
+        "float_duration": [ 0.1, 0.35 ]
+      },
+      "minecraft:can_fly": {
+      },
+      "minecraft:health": {
+        "value": 6,
+        "max": 6
+      },
+      "minecraft:nameable": {
+      },
+      "minecraft:physics": {
+      }
+        }
+    },
+
+    "components": {
+      "minecraft:is_hidden_when_invisible": {
+      },
+      "minecraft:type_family": {
+        "family": [ "bat", "mob" ]
+      },
+      
+      "minecraft:collision_box": {
+        "width": 0.5,
+        "height": 0.9
+      },
+      
+      
+      
+      "minecraft:conditional_bandwidth_optimization": {
+      }
+    },
+
+    "events": {
+    
+    "minecraft:entity_spawned":{
+    "add": {
+          "component_groups": [ "minecraft:base" ]
+        }
+    },
+        "earthdll:show": {
+        "add": {
+          "component_groups": [ "earthdll:show" ]
+        },
+        "remove": {
+          "component_groups": [ "earthdll:not_show" ]
+        }
+      },
+          "earthdll:not_show": {
+        "add": {
+          "component_groups": [ "earthdll:not_show" ]
+        },
+        "remove": {
+          "component_groups": [ "earthdll:show" ]
+        }
+      },
+    "earthdll:flow": {
+        "add": {
+          "component_groups": [ "earthdll:flowing_text" ]
+        },
+        "remove": {
+          "component_groups": [ "minecarft:base" ]
+        }
+      }
+    }
+  }
+}
