@@ -5,14 +5,13 @@ import lmd5 from "./md5.js"
 var time_board = false
 var InfoBlock
 var Infos
-var tip = ""
 var entities_count = 0
 var tps_ms = 0
 var trades = []
 var ore_list = ["minecraft:clock","minecraft:iron_ingot" , "minecraft:raw_iron" , "minecraft:raw_gold" , "minecraft:gold_ingot" , "minecraft:diamond" , "minecraft:emerald" , "minecraft:netherite_scrap" , "minecraft:coal" , "minecraft:lapis_lazuli"]
 var beload = false
 const emojis = [["","/笑脸","/xl"],["","/苦脸","/kl"],["","/死","/si"],["","/白眼","/by"],["","/开心","/kx"],["","/流口水","/lks"],["","/无语","/wy"],["","/搞怪","/gg"],["","/猥琐","/ws"],["","/哭","/ku"],["","/冷","/leng"],["","/生气","/sq"],["","/帅","/shuai"],["","/害羞","/hx"],["","/魔鬼","/mg"],["","/所以呢","/syn"],["","/笑哭","/xk"],["","/口罩","/kz"],["","/亲","/qin"]]
-var command_list = [ "Float","land","Fill","tpaccept","reset" , "cd" , "菜单" , "talk" , "私聊" , "tp" , "传送" , "死" , "die",]
+var command_list = [ "land","Fill","tpaccept","reset" , "cd" , "菜单" , "talk" , "私聊" , "tp" , "传送" , "死" , "die",]
 var ui_path = "textures/ui/"
 var totals = ["欢迎来到§e无名氏生存服务器§r","聊天框输入 §ecd§r 或 §e菜单§r 进入主菜单","§e使用矿物双击方块§r打开菜单","严查§4矿物透视§r，保证玩家公平"]
 var ideas = []
@@ -29,7 +28,6 @@ var spawn = 0
 var spawn_now = 0
 var ban_list = []
 var works = []
-var piston_block = {}
 var settings = {
     kick : true,
     team_id : 10000
@@ -55,18 +53,6 @@ const overworld = world.getDimension("minecraft:overworld")
 const end = world.getDimension("minecraft:the_end")
 const nether = world.getDimension("minecraft:nether")
 
-function show_tips(player){
-    if(tip !== ""){
-    player.tell(tip.replace("\\n","\n"))}
-}
-
-function run_after(time = 10 , func , binds = []){
-    var id = system.runSchedule(function(){
-        system.clearRunSchedule(id)
-        func.apply(null,binds)
-    },time)
-}
-
 function get_di_by_id(id){
     switch(id){
         case "minecraft:nether":
@@ -88,8 +74,8 @@ var safe_place = [spawn_point]
     /tag @e[type=npc] add serverInfomation
 
 */
-function to_md5(input,sult = "EarthDLL") {
-    return lmd5.hex_md5(input + sult)
+function to_md5(input) {
+    return lmd5.hex_md5(input + "EarthDLL")
 }
 function script_check_run(command){
     var players = world.getAllPlayers()
@@ -180,21 +166,9 @@ function save_all_trades(){
     Infos.setItem(4,item)
 }
 
-function save_tip(text){
-    var item = Infos.getItem(6)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-        tip = text
-        item.setLore([text])
-        
-    
-    Infos.setItem(6,item)
-}
-
 function kick(player,reason,again = false){
     if(player.kick !== true && settings.kick === true){
-    if(again === false && ban_list.indexOf(player.name)=== -1){
+    if(again === false){
         ban_list.push(player.name)
         save_ban_list()
     }
@@ -317,7 +291,6 @@ function reload_all(){
                 load_settings()
                 load_trades()
                 load_lands()
-                load_tip()
                 world.say("§e服务器信息加载完成")
                 beload = true
             }
@@ -343,20 +316,6 @@ function load_totals(){
         Infos.setItem(0,new ItemStack(MinecraftItemTypes.apple))
     }
 }
-
-function load_tip(){
-    var item = Infos.getItem(6)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        if(lores.length > 0){
-            tip = lores[0]
-        }
-    }
-    else{
-        Infos.setItem(6,new ItemStack(MinecraftItemTypes.apple))
-    }
-}
-
 function load_trades(){
     var item = Infos.getItem(4)
     if(typeof(item) === "object"){
@@ -469,6 +428,7 @@ function load_ban_list(){
 
 function load_all_teams(){
     var item = Infos.getItem(3)
+    return 0
     if(typeof(item) === "object"){
         var lores = item.getLore()
         for(var cf of lores){
@@ -783,11 +743,8 @@ world.events.blockBreak.subscribe(event => {
 
 world.events.blockPlace.subscribe(event => {
     if(typeof(event.player) === "object"){
-        var block = event.block
-        if(block.typeId === "minecraft:piston"){
-            
-        }
         add_score(event.player,1)
+        var block = event.block
         var test = block_test(block,false,1)
         if(test !== "none"){
             add_history(event.player.name + get_pos(event.player) + "(" + event.player.dimension.name + ")" + "放置方块" +block.typeId + get_block_pos(block))
@@ -828,10 +785,9 @@ world.events.blockPlace.subscribe(event => {
 
 })
 
-world.events.pistonActivate.subscribe(event => {
-     var piston = event.block
+world.events.beforePistonActivate.subscribe(event => {
+    var piston = event.block
     var dir = piston.permutation.getProperty("facing_direction").value
-    
     var pos = piston.location
     switch(dir){
         case "east":
@@ -853,30 +809,16 @@ world.events.pistonActivate.subscribe(event => {
             pos = new BlockLocation(piston.x,piston.y-1,piston.z)
             break;
     }
-    var block = event.dimension.getBlock(pos)
-    pos = get_block_pos(block)
-    world.say(String(event.piston.isExpanding))
-    world.say(String(event.piston.isExpanded))
-    world.say(String(event.piston.isRetracting))
-    world.say(String(event.piston.isRetracted))
+    pos = event.dimension.getBlock(pos).typeId
 
-    if(typeof(piston_block[pos]) === "object" && event.piston.isRetracted === true){
-        world.say("test")
-        if(piston_block[pos].id !== block.typeId && system.currentTick - piston_block[pos].time < 10){
-            world.say("yes")
-        }
-        
-        piston_block[pos] = undefined
-    }
-})
-
-world.events.beforePistonActivate.subscribe(event => {
-    var piston = event.block
-    
-    
     var blocks = event.piston.attachedBlocks
     for(var cf of blocks){
     var block = event.dimension.getBlock(cf)
+    if(kick_break_blocks.indexOf(block.typeId) !== -1){
+        event.cancel = true
+        var bader = event.dimension.getPlayers({closest:1,maxDistance:10,location:new Location(cf.x,cf.y,cf.z)})
+        kick(bader,"使用非法活塞")
+    }
     if(block.typeId === "minecraft:hopper"){
         event.cancel = true
         return 0
@@ -935,13 +877,6 @@ world.events.tick.subscribe(event => {
         }
     }
     if(event.currentTick % 20 == 0){
-        for(var cff of players){
-            if(typeof(cff.di_now) === "string" && cff.di_now !== cff.dimension.id){
-                cff.addEffect(MinecraftEffectTypes.resistance,140,3)
-            }
-            cff.di_now = cff.dimension.id
-        }
-    
         run_command("scoreboard players add @a play_time 1")
         if(time_board === false){
             run_command("scoreboard players reset * show2")
@@ -966,7 +901,7 @@ world.events.tick.subscribe(event => {
     }
     if(event.currentTick % 6000 > 5400&&event.currentTick % 20 === 0){
         for(var cf of players){
-        cf.onScreenDisplay.setActionBar("§e[清洁工]"+ String(30-(event.currentTick%6000-5400)/20) + "s后清理所有掉落物")
+        cf.onScreenDisplay.setActionBar("§e[清洁工]"+ String((event.currentTick%6000-5400)/20) + "s后清理所有掉落物")
         }
     }
     if(event.currentTick % 20 == 0){
@@ -977,7 +912,6 @@ world.events.tick.subscribe(event => {
         tps_ms = Date.now()
     }
     if(event.currentTick % 2 == 0){
-        
         run_command("kill @e[type=npc,tag=!serverInfomation]")
         run_command("kill @e[type=command_block_minecart]")
         for(var dragons of overworld.getEntities({type:"ender_dragon"})){
@@ -986,13 +920,6 @@ world.events.tick.subscribe(event => {
             }
         }
         for(var cf=0; cf<players.length; cf++){
-            if(players[cf].login === false){
-                var x = players[cf].rotation.x
-                if(x>0){x=-85}
-                else{x=85}
-                players[cf].teleport(players[cf].join_pos,players[cf].dimension,x,players[cf].rotation.y+40)
-                players[cf].addEffect(MinecraftEffectTypes.blindness,1,1)
-            }
             if(ban_list.indexOf(players[cf].name) !== -1){
                 kick(players[cf],"封禁列表，自动踢出",true)
             }
@@ -1003,7 +930,15 @@ world.events.tick.subscribe(event => {
             if(get_tag(players[cf],"beBan") !== "" && is_op(players[cf]) === false){
                 banBar(players[cf])
             }
-            
+            if(typeof(players[cf].ro) !== "number"){
+                players[cf].ro = players[cf].rotation.x
+            }
+            else{
+                if(players[cf].has_show !== true && players[cf].rotation.x !== players[cf].ro){
+                    show_board(players[cf])
+                    players[cf].has_show = true
+                }
+            }
             if(players[cf].hasTag("chesting") === true){
             }
             if(players[cf].getComponent("minecraft:health").current <= 0 && players[cf].lastDie != true){
@@ -1196,15 +1131,6 @@ function get_block_from_face(di,location,face){
         return block
 }
 
-
-
-
-world.events.itemStartUseOn.subscribe(event =>{
-    world.say("1")
-    
-})
-
-
 world.events.beforeItemUseOn.subscribe(event =>{
     /*if(event.item.typeId === "minecraft:shulker_box" || event.item.typeId === "minecraft:undyed_shulker_box"){
         var lore = event.item.getLore()
@@ -1312,16 +1238,11 @@ world.events.beforeItemUseOn.subscribe(event =>{
     //需要补充
     if(event.item.typeId === "minecraft:piston"){
         var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
-        var blocks = []
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x+1,block.y,block.z)))
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x-1,block.y,block.z)))
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y,block.z+1)))
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y+1,block.z)))
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y-1,block.z)))
-        blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y,block.z-1)))
-        for(var cf of blocks){
-            piston_block[get_block_pos(cf)] = {"id":cf.typeId,"time":system.currentTick}
-        }
+        var lo = {"x" : block.x,"y" : block.y,"z" : block.z}
+        var piston_nearly = []
+        var nearly = event.source.dimension.getBlock(new BlockLocation(lo.x+1 , lo.y , lo.z))
+        
+    
     }
     }
     
@@ -1417,8 +1338,6 @@ world.events.itemUseOn.subscribe(event =>{
 
 world.events.entityHit.subscribe(event =>{
     if(typeof(event.hitBlock) === "object" && event.entity.typeId === "minecraft:player"){
-        //world.say(typeof(event.entity.item_use_event))
-        //event.entity.item_use_event.cancel = true
         if(event.hitBlock.typeId === "minecraft:chest" && event.entity.hasTag("op-work") === false){
             var item = event.hitBlock.getComponent("minecraft:inventory").container.getItem(0)
             if(typeof(item) === "object"){
@@ -1434,15 +1353,6 @@ world.events.entityHit.subscribe(event =>{
                     chestWarnBar(event.entity)
                     chestWarnBar(event.entity)
                 }
-            }
-        }
-    }
-    if(typeof(event.hitEntity) === "object" && event.entity.typeId === "minecraft:player"){
-        var entity = event.hitEntity
-        var player = event.entity
-        if(entity.typeId === "minecraft:bat" && entity.hasTag("type,float") === true){
-            if(player.hasTag("op-work")){
-                editFloatBar(player,entity)
             }
         }
     }
@@ -1470,11 +1380,6 @@ world.events.beforeChat.subscribe(event =>{
     event.cancel = true
     if(command_list.indexOf(event.message.split(" ")[0]) !== -1){
         switch(event.message.split(" ")[0]){
-            case "Float":
-                if(is_op(player) === true){
-                    run_after(10,floatBar,[player])
-                }
-                break;
             case "tpaccept":
                 if(typeof(event.sender.tpa_player) === "object"){
                     if(system.currentTick - event.sender.tpa_player.time < 1200){
@@ -1518,17 +1423,17 @@ world.events.beforeChat.subscribe(event =>{
             case "cd":
             case "菜单":
                 event.sender.runCommandAsync("damage @s 0 entity_attack")
-                run_after(10,cdBar,[event.sender])
+                cdBar(event.sender)
                 break;
             case "talk":
             case "私聊":
                 event.sender.runCommandAsync("damage @s 0 entity_attack")
-                run_after(15,talkBar,[event.sender])
+                WaittalkBar(event.sender)
                 break;
             case "tp":
             case "传送":
                 event.sender.runCommandAsync("damage @s 0 entity_attack")
-                run_after(10,posBar,[event.sender])
+                WaitposBar(event.sender)
                 break;
             case "die":
             case "死":
@@ -1591,15 +1496,6 @@ world.events.playerSpawn.subscribe(event => {
     add_history(event.player.name + "(" + String(Math.round(event.player.location.x)) + "，" + String(Math.round(event.player.location.y)) + "，" + String(Math.round(event.player.location.z)) +")(" + event.player.dimension.name + ")进入服务器")
     event.player.has_show = false
     event.player.Join = true
-    event.player.login = false
-    event.player.join_time = Date.now()
-    event.player.join_pos = event.player.location
-    event.player.addEffect(MinecraftEffectTypes.resistance,140,3)
-    if(get_tag(event.player,"password,") === ""){
-    reginBar(event.player)
-    }else{
-    loginBar(event.player)
-    }
     }
 })
 
@@ -1700,6 +1596,8 @@ function warnBar(player){
 
 
 function cdBar(player){
+    var id = system.runSchedule(function(){
+    system.clearRunSchedule(id)
     var text = "\n敬爱的玩家：" + player.name + "\n你的贡献：" + String(get_score(player)) + "\n你的游玩时间：" + String(world.scoreboard.getObjective("play_time").getScore(player.scoreboard))
     var ui = new ActionFormData()
         .title("主菜单")
@@ -1739,6 +1637,7 @@ function cdBar(player){
                     break;
             }
         })
+    },15)
 }
 
 function talkBar(player){
@@ -1862,7 +1761,7 @@ function addMemberBar(player,index){
         .dropdown("选择玩家(消耗50贡献)", names ,0)
         
         ui.show(player).then(result => {
-            run_after(15,addTeamBar,[real_players[result.formValues[0]],player,index])
+            addTeamBar(real_players[result.formValues[0]],player,index)
         })
 }
 
@@ -1890,45 +1789,20 @@ function replyBar(player,self,last_text){
         })
 }
 
-function floatBar(player,text = []){
-    var show = ""
-    for(var cf of text){
-    show += cf + "\n"
-    }
-    show += "\n"
-    var ui = new ModalFormData()
-        .title("添加悬浮字")
-        .textField(show + "悬浮文字","此处输入悬浮文字","")
-        .dropdown("NPC尺寸", ["正常","小"] ,0)
-        .toggle("结束(false则继续下一行)",false)
-        
-        ui.show(player).then(result => {
-            text.push(result.formValues[0])
-            if(result.formValues[2] === true){
-                var en = player.dimension.spawnEntity("minecraft:bat",new Location(player.location.x, player.location.y, player.location.z, ))
-                en.triggerEvent("earthdll:flow")
-                if(result.formValues[1] === 1){
-                    en.triggerEvent("earthdll:not_show")
-                    en.addTag("size,1")
-                }else{en.addTag("size,0")}
-                en.addTag("type,float")
-                en.addTag("floater,"+player.name)
-                var texts = ""
-                for(var cf=0;cf<text.length;cf++){
-                texts += text[cf]
-                if(text.length - cf !== 1){
-                texts += "\n"
-                }
-                }
-                en.nameTag = texts
-            }
-            else{
-                floatBar(player,text)
-            }
-        })
+function WaittalkBar(player){
+    var id = system.runSchedule(function(){
+        talkBar(player)
+        system.clearRunSchedule(id)
+    },15)
 }
 
 
+function WaitposBar(player){
+    var id = system.runSchedule(function(){
+        posBar(player)
+        system.clearRunSchedule(id)
+    },15)
+}
 
 
 
@@ -2570,7 +2444,7 @@ function settingBar(player){
         else{
         ui = ui.button("反作弊自动踢人 - 开")
         }
-        ui = ui.button("修改进服tip")
+        ui = ui.button("信息转移(0.0.3及以下)")
         
         ui.show(player).then(result => {
             if(result.selection === 0){
@@ -2582,9 +2456,7 @@ function settingBar(player){
                 }
                 settingBar(player)
             }
-            if(result.selection === 1){
-                editTipBar(player)
-            }
+            
             
             save_settings()
         })
@@ -2612,139 +2484,6 @@ function setPosBar(player){
         })
 }
 
-function editTipBar(player){
-    var ui = new ModalFormData()
-        .title("修改进服tip")
-        .textField("提示语\n为空则不显示\n使用\"\\n\"换行","此处输入文字",tip)
-        
-        ui.show(player).then(result => {
-            save_tip(result.formValues[0])
-            settingBar(player)
-        })
-}
-
-
-function editFloatBar(player,float){
-    var ui = new ActionFormData()
-        .title("悬浮字设置")
-        .body("选择操作\n悬浮字制作者：" + get_tag(float,"floater,").replace("floater,",""))
-        .button("编辑悬浮字", ui_path + "settings_glyph_color_2x.png")
-        .button("删除悬浮字" , ui_path + "redX1.png")
-        .button("修改尺寸" , ui_path + "arrow_dark_left_stretch.png")
-        .button("编辑菜单" , ui_path + "arrow_dark_left_stretch.png")
-
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                changeFloatBar(player,float,0)
-            }
-            if(result.selection === 1){
-                float.kill()
-            }
-            if(result.selection === 3){
-                editFloatMenuBar(player,float)
-            }
-            if(result.selection === 2){
-               if(float.hasTag("size,0")){
-                    float.triggerEvent("earthdll:not_show")
-                    float.removeTag("size,0")
-                    float.addTag("size,1")
-               }
-               else{
-                    float.triggerEvent("earthdll:show")
-                    float.removeTag("size,1")
-                    float.addTag("size,0")
-               }
-               
-            }
-        })
-}
-function get_menu(float){
-    var body = get_tag(float,"menu_body,")
-    if(body !== ""){
-    body = body.slice(10)
-    }
-    var text = get_tag(float,"menu％")
-    var menu = []
-    if(text !== ""){
-        var menus = text.slice(5)
-        menu = JSON.parse(menus)
-    }
-    return {
-        "body":body,
-        "menu":menu
-    }
-}
-
-function save_float(float,result){
-    var body = get_tag(float,"menu_body,")
-    if(body !== ""){
-        float.removeTag(body)
-    }float.addTag("menu_body," + result.body)
-    var menus = "menu％" + JSON.stringify(result.menu)
-    float.removeTag(get_tag(float,"menu％"))
-    float.addTag(menus)
-}
-
-function editFloatMenuBar(player,float,result = ""){
-    if(typeof(result) !== "object"){
-    result = get_menu(float)}
-    else{
-     save_float(float,result)
-    }
-    world.say(JSON.stringify(result))
-    var ui = new ActionFormData()
-        .title("菜单界面")
-        .body("(编辑界面)\n\n" + result.body)
-        .button("添加按钮")
-        .button("编辑菜单文字" , ui_path + "arrow_dark_left_stretch.png")
-        
-        for(var cf of result.menu){
-            ui = ui.button(cf.name)
-        }
-        
-        ui.show(player).then(results => {
-            if(results.selection === 0){
-                floatAddButton(player,float,result)
-            }
-            if(results.selection === 1){
-                floatEditBody(player,float,result)
-            }
-            if(results.selection > 1){
-                floatButton(player,float,result,results.selection-2)
-            }
-        })
-}
-
-function floatEditBody(player,float,result){
-    var ui = new ModalFormData()
-        .title("编辑菜单文字")
-        .textField("文字","此处输入文字","")
-        
-        ui.show(player).then(results => {
-            result.body = results.formValues[0]
-            editFloatMenuBar(player,float,result)
-        })
-}
-
-function floatAddButton(player,float,result){
-    var ui = new ModalFormData()
-        .title("添加按钮")
-        .textField("按钮名","此处输入名字","")
-        
-        ui.show(player).then(results => {
-            result.menu.push({
-                "name" : results.formValues[0],//按钮名字
-                "option" : [],//按钮执行条件(命令是否成功，贡献值，coins，无条件)
-                "option_type":"none",//none无视条件执行succeed，succeed_all，succeed_one，fail_all，fail_one
-                "result":{
-                    "succeed":[],//条件为成功
-                    "fail" : []//条件为失败
-                }
-            })
-            editFloatMenuBar(player,float,result)
-        })
-}
 
 function choosePosBar(player,mode){
     var ui = new ActionFormData()
@@ -3357,69 +3096,6 @@ function chestKeyBar(player,password,location,owner){
         })
 }
 
-function reginBar(player){
-    var ui = new ModalFormData()
-        .title("注册界面")
-        .textField("§b(你可以选择不注册)\n欢迎进入服务器\n首次进入服务器，请注册你的密码：","在此输入密码","")
-        
-        ui.show(player).then(result => {
-            if(result.canceled){
-                if(result.cancelationReason === "userBusy"){
-                    reginBar(player)
-                    
-                }
-                else{
-                    player.tell("§e你未注册，请注意账号安全")
-                    player.login = true
-                    show_board(player)
-                    show_tips(player)
-                    player.has_show = true
-                }
-                
-            }
-            else{
-                player.addTag("password,"+to_md5(result.formValues[0],"password.in.serverand=Earthdll^SUPPORT/From2023~now"))
-                player.tell("§e注册成功")
-                player.login = true
-                show_board(player)
-                show_tips(player)
-                player.has_show = true
-            }
-        })
-}
-
-function loginBar(player){
-    var ui = new ModalFormData()
-        .title("密码验证")
-        .textField("§b(请不要关闭本界面！否则你将被踢出服务器！)\n欢迎进入服务器\n请输入密码登录服务器：","在此输入密码","")
-        
-        ui.show(player).then(result => {
-            if(result.canceled){
-                if(result.cancelationReason === "userClosed"){
-                    kick(player,"密码验证失败",true)
-                    return 0
-                }
-                loginBar(player)
-            }
-            else{
-                var pass = get_tag(player,"password,")
-                if(to_md5(result.formValues[0],"password.in.serverand=Earthdll^SUPPORT/From2023~now") === pass.slice(9)){
-                    player.login = true
-                    show_board(player)
-                    show_tips(player)
-                    player.has_show = true
-                }
-                else{
-                    if(Date.now() - player.join_time > 30000){
-                        kick(player,"密码验证失败",true)
-                    }
-                    loginBar(player)
-                }
-            }
-        })
-}
-
-
 function chooseBanBar(player){
     var players = world.getAllPlayers()
     var names = []
@@ -3462,7 +3138,7 @@ function tpPlayerBar(player){
         
         ui.show(player).then(result => {
             if(result.formValues[2] === true){
-            run_after(15,tpaBar,[players[result.formValues[0]],player,result.formValues[1]])
+            tpaBar(players[result.formValues[0]],player,result.formValues[1])
             }
             players[result.formValues[0]].tell("§b玩家" + players[result.formValues[0]].name + "请求传送至您的位置\n对方备注：" + result.formValues[1] + "\n§b1分钟内输入tpaccept即可传送")
             players[result.formValues[0]].tpa_player = {
@@ -3517,12 +3193,14 @@ function sayBoardBar(player){
 }
 
 function tpaBar(target,player,tpText){
+    var id = system.runSchedule(function(){
     target.runCommandAsync("damage @s 0 entity_attack")
     var ui = new MessageFormData()
         .title("TPA传送请求")
         .body("(打开该菜单会受到一个假伤害，请忽略)\n玩家" + player.name + "请求传送至您的位置\n对方备注：" + tpText + "\n请通过下方按钮决定")
         .button1("同意")
         .button2("拒绝")
+        system.clearRunSchedule(id)
         ui.show(target).then(result => {
             switch(result.selection){
                 case 1:
@@ -3537,16 +3215,19 @@ function tpaBar(target,player,tpText){
                     break;
             }
         })
+    },10)
 
 }
 
 function addTeamBar(target,self,index){
+    var id = system.runSchedule(function(){
     target.runCommandAsync("damage @s 0 entity_attack")
     var ui = new MessageFormData()
         .title("队伍邀请请求")
         .body("(打开该菜单会受到一个假伤害，请忽略)\n玩家" + self.name + "邀请您加入TA的队伍\n请通过下方按钮决定")
         .button1("同意")
         .button2("拒绝")
+        system.clearRunSchedule(id)
         ui.show(target).then(result => {
             switch(result.selection){
                 case 1:
@@ -3568,6 +3249,7 @@ function addTeamBar(target,self,index){
                     break;
             }
         })
+    },10)
 
 }
 
@@ -3723,38 +3405,6 @@ function totalsLineBar(player,texts,goal){
         })
 }
 
-function floatLineBar(player,float,choose){
-    var texts = float.nameTag.split("\n")
-    var text = texts[choose]
-    var ui = new ModalFormData()
-        .title("悬浮字单行编辑")
-        .textField(text,"该行内容",text)
-        .dropdown("操作", ["修改","插入新一行","删除这一行"] ,0)
-
-        ui.show(player).then(result => {
-            switch(result.formValues[1]){
-                case 0:
-                    texts[choose] = result.formValues[0]
-                    break;
-                case 1:
-                    texts.splice(choose+1,0,result.formValues[0])
-                    break;
-                case 2:
-                    texts.splice(choose,1)
-                    break;
-            }
-            var name = ""
-            for(var cf=0;cf<texts.length;cf++){
-                name += texts[cf]
-                if(texts.length - cf !== 1){
-                name += "\n"
-                }
-                }
-            float.nameTag = name
-            changeFloatBar(player,float,choose)
-        })
-}
-
 function totalsJumpBar(player,texts){
     var text = ""
     for(var cf=0;cf<texts.length;cf++){
@@ -3830,54 +3480,7 @@ function editTotalsBar(player,texts = [...totals],choose = 0){
         })
 }
 
-function changeFloatBar(player,float,choose = 0){
-    var texts = float.nameTag.split("\n")
-    var text = ""
-    for(var cf=0;cf<texts.length;cf++){
-        if(cf === choose){
-            text += "§a>>§r"
-        }
-        else{
-            text += "  "
-        }
-        text += " " + texts[cf] + "\n"
-    }
-    var ui = new ActionFormData()
-        .title("悬浮字编辑")
-        .body(text)
-        .button("上一行")
-        .button("编辑这一行")
-        .button("下一行")
-        .button("完成")
-        
-        
-        ui.show(player).then(result => {
-            switch(result.selection){
-                case 0:
-                    if(choose > 0){
-                        changeFloatBar(player,float,choose-1)
-                    }
-                    else{
-                        changeFloatBar(player,float,choose)
-                    }
-                    break;
-                case 2:
-                    if(choose < texts.length - 1){
-                        changeFloatBar(player,float,choose+1)
-                    }
-                    else{
-                        changeFloatBar(player,float,choose)
-                    }
-                    break;
-                case 3:
-                    editFloatBar(player,float)
-                    break;
-                case 1:
-                    floatLineBar(player,float,choose)
-                    break;
-            }
-        })
-}
+
 
 function add_history(text){
     var say = get_time() + text

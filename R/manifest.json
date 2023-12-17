@@ -1,0 +1,18 @@
+{
+    "format_version": 2,
+    "header": {
+        "description": "By EarthDLL,保留所有权利",
+        "name": "服务器管理框架",
+        "uuid": "fe9f8597-5454-481a-1730-8d070a8e2e58",
+        "version": [0, 0, 1],
+        "min_engine_version": [1, 19, 0]
+    },
+    "modules": [
+        {
+            "description": "resourcePack.vanilla_server.description",
+            "type": "resources",
+            "uuid": "79fccc3b-7bad-3f4f-aa97-d98108e6aa33",
+            "version": [0, 0, 1]
+        }
+    ]
+}

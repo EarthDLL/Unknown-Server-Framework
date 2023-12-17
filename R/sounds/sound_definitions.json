@@ -1,0 +1,20 @@
+{
+    "server.wf": {
+    "category": "weather",
+    "sounds": [
+      "sounds/server/wf"
+        ]
+    },
+    "server.lw": {
+    "category": "weather",
+    "sounds": [
+      "sounds/server/lw"
+        ]
+    },
+    "server.szyf": {
+    "category": "weather",
+    "sounds": [
+      "sounds/server/szyf"
+        ]
+    }
+}
