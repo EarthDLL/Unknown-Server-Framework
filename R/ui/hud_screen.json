@@ -1,0 +1,33 @@
+{
+  "anim_actionbar_text_background_alpha_out": {
+    "anim_type": "alpha",
+    "easing": "in_expo",
+    "duration": 5,
+    "from": 0.3,
+    "to": 0,
+    "destroy_at_end": "hud_actionbar_text"
+  },
+  "hud_actionbar_text": {
+    "type": "image",
+    "size": [ "100%c + 12px", "100%c + 5px" ],
+    "offset": [ "12%", "3%" ],
+    "anchor_to": "top_left",
+    "anchor_from": "top_left",
+    "texture": "textures/ui/hud_tip_text_background",
+    "alpha": "@hud.anim_actionbar_text_background_alpha_out",
+    "controls": [
+      {
+        "actionbar_message": {
+          "type": "label",
+          "anchor_from": "center",
+          "anchor_to": "center",
+          "color": "white",
+          "layer": 1,
+          "text": "$actionbar_text",
+          "localize": false,
+          "alpha": "@hud.anim_actionbar_text_alpha_out"
+        }
+      }
+    ]
+  }
+}
