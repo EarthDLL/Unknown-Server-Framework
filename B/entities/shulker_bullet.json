@@ -1,0 +1,117 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "minecraft:shulker_bullet",
+      "is_spawnable": false,
+      "is_summonable": true,
+      "is_experimental": false
+    },
+    "component_groups": {
+      "usf:land":{
+        "minecraft:timer": {
+          "looping": true,
+          "time": [0.1,0.1],
+          "time_down_event": {
+            "event": "usf:land_tick"
+          }
+        }
+      },
+        "usf:data_trade":{
+            "minecraft:inventory":{
+              "can_be_siphoned_from": false,
+              "container_type": "inventory",
+              "inventory_size": 1024,
+              "private": true
+          }
+        },
+		"usf:data_board":{
+            "minecraft:scale": {
+				"value": 0.4
+			}
+        },
+        "minecraft:normal":{
+            "minecraft:projectile": {
+        "on_hit": {
+          "impact_damage": {
+            "damage": 4,
+            "knockback": true,
+            "should_bounce": true
+          },
+          "mob_effect": {
+            "effect": "levitation",
+            "durationeasy": 200,
+            "durationnormal": 200,
+            "durationhard": 200,
+            "amplifier": 0
+          },
+          "remove_on_hit": {
+          },
+          "particle_on_hit": {
+            "particle_type": "largeexplode",
+            "on_other_hit": true
+          }
+        },
+        "hit_sound": "bullet.hit",
+        "destroyOnHurt": true,
+        "crit_particle_on_hurt": true,
+        "power": 1.6,
+        "gravity": 0.05,
+        "uncertainty_base": 16,
+        "uncertainty_multiplier": 4,
+        "anchor": 1,
+        "offset": [ 0, -0.1, 0 ],
+        "homing": true
+      }
+        }
+    },
+    "components": {
+      "minecraft:collision_box": {
+        "width": 0.625,
+        "height": 0.625
+      },
+      
+      "minecraft:physics": {
+        "has_collision": false
+      },
+      "minecraft:conditional_bandwidth_optimization": {
+        "default_values": {
+          "max_optimized_distance": 80.0,
+          "max_dropped_ticks": 7,
+          "use_motion_prediction_hints": true
+        }
+      }
+    },
+    
+    "events":{
+        "usf:land_tick":{
+
+        },
+        "usf:add_to_land":{
+          "add": {
+            "component_groups": [ "usf:land" ]
+          }
+        },
+        "minecraft:entity_spawned":{
+        "add": {
+              "component_groups": [ "minecraft:normal" ]
+            }
+        },
+        "usf:stop":{
+            "remove": {
+              "component_groups": [ "minecraft:normal" ]
+            }
+        },
+        "usf:data_trade":{
+          "add": {
+            "component_groups": [ "usf:data_trade" ]
+          }
+      },
+	  "usf:data_board":{
+          "add": {
+            "component_groups": [ "usf:data_board" ]
+          }
+      }
+    }
+  }
+}
