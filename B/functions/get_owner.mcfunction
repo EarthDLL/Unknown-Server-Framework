@@ -1,0 +1,1 @@
+scriptevent usf:get_owner

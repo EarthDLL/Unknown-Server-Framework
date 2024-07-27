@@ -1,0 +1,8 @@
+{
+  "format_version": "1.19.50",
+  "minecraft:camera_preset": {
+    "identifier": "usf:example_player_effects",
+    "inherit_from": "minecraft:free",
+    "player_effects": true
+  }
+}

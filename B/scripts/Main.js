@@ -1,3497 +1,6374 @@
-import { Color,Vector,MolangVariableMap,MinecraftEffectTypes,MinecraftBlockTypes,MinecraftItemTypes,ItemStack,Location,BlockLocation,world,Player,system,Scoreboard,EnchantmentList } from "@minecraft/server";
-import { ActionFormData,MessageFormData,ModalFormData,ActionFormResponse } from "@minecraft/server-ui";
-//import {http} from "@minecraft/server-net";
+import { //MolangVariableMap,
+    //BlockAreaSize,
+    //ItemStack,
+    world,
+    Player,
+    system
+    //BlockTypes,
+    //EntityTypes,
+    //ItemTypes
+  } from "@minecraft/server";
+import * as mc from "@minecraft/server";
 import lmd5 from "./md5.js"
-var time_board = false
-var InfoBlock
-var Infos
-var entities_count = 0
-var tps_ms = 0
-var trades = []
-var ore_list = ["minecraft:clock","minecraft:iron_ingot" , "minecraft:raw_iron" , "minecraft:raw_gold" , "minecraft:gold_ingot" , "minecraft:diamond" , "minecraft:emerald" , "minecraft:netherite_scrap" , "minecraft:coal" , "minecraft:lapis_lazuli"]
-var beload = false
-const emojis = [["","/笑脸","/xl"],["","/苦脸","/kl"],["","/死","/si"],["","/白眼","/by"],["","/开心","/kx"],["","/流口水","/lks"],["","/无语","/wy"],["","/搞怪","/gg"],["","/猥琐","/ws"],["","/哭","/ku"],["","/冷","/leng"],["","/生气","/sq"],["","/帅","/shuai"],["","/害羞","/hx"],["","/魔鬼","/mg"],["","/所以呢","/syn"],["","/笑哭","/xk"],["","/口罩","/kz"],["","/亲","/qin"]]
-var command_list = [ "land","Fill","tpaccept","reset" , "cd" , "菜单" , "talk" , "私聊" , "tp" , "传送" , "死" , "die",]
-var ui_path = "textures/ui/"
-var totals = ["欢迎来到§e无名氏生存服务器§r","聊天框输入 §ecd§r 或 §e菜单§r 进入主菜单","§e使用矿物双击方块§r打开菜单","严查§4矿物透视§r，保证玩家公平"]
-var ideas = []
-var boards = []
-var logs = []
-var history = []
-var teams = []
-var lands = {}
-var team_id = 10000
-var tps = 0
-var pistons = 0
-var pistons_now = 0
-var spawn = 0
-var spawn_now = 0
-var ban_list = []
-var works = []
-var settings = {
-    kick : true,
-    team_id : 10000
+import * as t from "./text.js"
+import {btnBar , infoBar , arrayEditor} from "./ui.js"
+import {ui_icon , usf_config , data_format , pictures} from "./data.js"
+
+var config = {}
+var dictionary = {}
+var fixed_texts = {
+    ZN : {},
+    ZW : {}
 }
-var danger_break_blocks = [ "minecraft:tnt" , "minecraft:beacon" , "mimecraft:dragon_egg" , "minecraft:observer" ,  "minecraft:ancient_debris" , "minecraft:netherite_block" , "minecraft:diamond_block" , "minecraft:deepslate_diamond_ore" , "minecraft:diamond_ore" , "minecraft:emerald_ore" , "minecraft:deepslate_emerald_ore" , "minecraft:bed"]
-var danger_place_blocks = [ "minecraft:tnt" , "minecraft:beacon" , "mimecraft:dragon_egg" , "minecraft:observer" ,  "minecraft:ancient_debris" , "minecraft:netherite_block" , "minecraft:diamond_block" , "minecraft:deepslate_diamond_ore" , "minecraft:diamond_ore" , "minecraft:emerald_ore" , "minecraft:deepslate_emerald_ore" , "minecraft:bed"]
-var kick_place_blocks = [ "minecraft:light_block","minecraft:invisible_bedrock","minecraft:chain_command_block","minecraft:repeating_command_block", "minecraft:bedrock" ,"minecraft:end_portal_frame" , "minecraft:mob_spawner","minecraft:structure_block"]
-var kick_break_blocks = [ "minecraft:chain_command_block","minecraft:repeating_command_block", "minecraft:bedrock" ,"minecraft:end_portal_frame" , "minecraft:structure_block"]
-var entities_test = [ "minecraft:wolf" , "minecraft:parrot" , "minecraft:donkey" , "minecraft:horse" , "minecraft:mule" , "minecraft:cat"]
-var kick_item = [  "minecraft:light_block","minecraft:invisible_bedrock","minecraft:command_block_minecart","minecraft:repeating_command_block","minecraft:chain_command_block","minecraft:structure_block","minecraft:bedrock","minecraft:command_block","minecraft:barrier","minecraft:end_portal_frame","minecraft:mob_spawner","minecraft:moving_block"]
-world.getDimension("minecraft:overworld").name = "§b主世界§r"
-world.getDimension("minecraft:the_end").name = "§5末地§r"
-world.getDimension("minecraft:nether").name = "§4下界§r"
 
-world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add play_time dummy 游玩时间")
-world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add score dummy 贡献值")
-world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add coin dummy 金币")
-world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add show1 dummy 游玩时间")
-world.getDimension("minecraft:overworld").runCommandAsync("scoreboard objectives add show2 dummy 游玩时间")
-
-const spawn_point = {x:-2,y:71,z:50}
+//获取3个维度
 const overworld = world.getDimension("minecraft:overworld")
 const end = world.getDimension("minecraft:the_end")
 const nether = world.getDimension("minecraft:nether")
+const dimensions =[
+    overworld,
+    nether,
+    end
+]
+const lock_rules = ["MobGriefing","KeepInventory","TntExplodes","ShowCoordinates","Pvp","DoMobSpawning","DoImmediateRespawn","CommandBlocksEnabled"]
+//给予三个维度名字
+overworld.name = get_text("overworld.name")
+end.name = get_text("end.name")
+nether.name = get_text("nether.name")
 
-function get_di_by_id(id){
-    switch(id){
-        case "minecraft:nether":
-            return nether
-            break;
-        case "minecraft:the_end":
-            return end
-            break;
-        case "minecraft:overworld":
-            return overworld
-            break;
+const version_code = "0.6.21B"
+const version_text = `欢迎使用无名氏服务器框架\n插件版本:${version_code}\n作者：EarthDLL`
+
+//命名空间
+const namespace = "usfV2:"
+const ui_path = "textures/ui/"
+
+var has_owner = false
+var reloaded = false
+var last_id = Date.now()
+var reset_boards = []
+var cache = {
+    time : 0,
+}
+var tran_info = {
+    weather : "",
+}
+var lock_config = []
+var ops = []
+var item_count = 0
+var id_names = {}
+var lands = {
+    min : [],
+    max : [],
+    ids : []
+}
+var logs = []
+var log_config = {
+    able : false,
+    time : Date.now(),
+    server : true
+}
+var ids = []
+var groups = []
+var group_mess = {}
+var id_player = {}
+var public_pos = []
+var share_pos = []
+var world_pos = []
+var sign = {}
+var chest = {}
+var white_words = []
+var log_info = {
+    "bb":{
+
+    },
+    "pb":{
+
     }
 }
 
-var safe_place = [spawn_point]
-//初始化获取队伍信息
-/*初始化信息方法
-    /summon npc 0 -63 0
-    /tag @e[type=npc] add serverInfomation
+//注册事件与任务
+world.afterEvents.entityHurt.subscribe(afterEntityHurt)
+world.afterEvents.itemUse.subscribe(afteritemUse)
+world.afterEvents.entityDie.subscribe(afterEntityDie)
+world.afterEvents.entityLoad.subscribe(afterEntityLoad)
+world.beforeEvents.entityRemove.subscribe(beforeEntityRemove)
+world.afterEvents.playerDimensionChange.subscribe(afterPlayerDimensionChange)
+world.afterEvents.entityHitEntity.subscribe(afterEntityHitEntity)
+world.afterEvents.entityHitBlock.subscribe(afterEntityHitBlock)
+world.beforeEvents.explosion.subscribe(beforeExplosion)
+//world.beforeEvents.blockExplode.subscribe(beforeExplosion)
+world.beforeEvents.chatSend.subscribe(beforeChatSend)
+world.afterEvents.playerGameModeChange.subscribe(afterPlayerGameModeChange)
+world.beforeEvents.playerLeave.subscribe(beforePlayerLeave)
+world.afterEvents.playerInteractWithBlock.subscribe(afterPlayerInteractWithBlock)
+world.afterEvents.playerSpawn.subscribe(playerSpawn)
+world.beforeEvents.playerInteractWithBlock.subscribe(beforePlayerInteractWithBlock)
+world.beforeEvents.playerInteractWithEntity.subscribe(beforePlayerInteractWithEntity)
+world.afterEvents.playerPlaceBlock.subscribe(afterBlockPlace)
+world.beforeEvents.playerPlaceBlock.subscribe(beforeBlockPlace)
+world.beforeEvents.itemUse.subscribe(beforeItemUse)
+world.afterEvents.playerBreakBlock.subscribe(afterBlockBreak)
+world.beforeEvents.playerBreakBlock.subscribe(beforeBlockBreak)
+world.afterEvents.entitySpawn.subscribe(afterEntitySpawn)
+world.afterEvents.worldInitialize.subscribe(worldInitializeEvent)
+system.afterEvents.scriptEventReceive.subscribe(scriptEventReceive,{"namespaces":["usf"]})
+world.afterEvents.weatherChange.subscribe(afterWeatherChanged)
+world.afterEvents.pistonActivate.subscribe(afterPistonActivate)
+world.afterEvents.gameRuleChange.subscribe(afterGameRuleChange)
 
-*/
-function to_md5(input) {
-    return lmd5.hex_md5(input + "EarthDLL")
-}
-function script_check_run(command){
-    var players = world.getAllPlayers()
-    for(var cf=0; cf<players.length;cf++){
-        if(players[cf].hasTag("op-work") === true && players[cf].hasTag("script-check") === true){
-            players[cf].runCommandAsync(command)
-        }
-    }
-}
-
-function fill_blocks(di,lo1,lo2,type,player){
-    new Promise((resolve, reject) => {
-    var start = lo1.y
-    var finish = lo2.y
-    var count = 0
-    if(start > finish){
-        finish = start
-        start = lo2.y
-    }
-    for(var cf=start;cf<=finish;cf++){
-    count += di.fillBlocks(new BlockLocation(lo1.x,cf,lo1.z),new BlockLocation(lo2.x,cf,lo2.z),type)
-    }
-    player.tell("填充完成，填充方块数量："+String(count))
-    })
-}
-
-function clear_items(){
-
-        for(var cf of world.getDimension("minecraft:overworld").getEntities({type:"item"})){
-            var kill = true
-            for(var cf1 of world.getDimension("minecraft:overworld").getEntities({type:"player",location:cf.headLocation,maxDistance:8})){
-                kill = false
+import("@minecraft/server-net").then((http)=>{
+    push_text("log.enable","当前日志功能可用！请开启日志服务器！")
+    log(get_text("log.enable"),[],"tip",1)
+    log_config.able = true
+    system.runInterval(()=>{
+        if(!log_config.server){
+            if(Date.now() - log_config.time > config.log.down*1000){
+                log_config.server = true
+            }else{
+                return
             }
-            if(kill === true){
-                cf.kill()
+        }
+        for(var op of logs){
+            var re  = new http.HttpRequest(config.log.address)
+            re = re.addHeader("usf",to_json(op))
+            re.timeout = 10
+            re.method = "Get"
+            http.http.request(re).then((r)=>{
+                if(r.body !== "usf"){
+                    log_config.server = false
+                    log_config.time = Date.now()
+                }
+            }).catch((err)=>{})
+        }
+        logs = []
+    },10)
+}).catch((err)=>{})
+
+//tran_text的全局内容更新(每2s)
+var system_ids = {}
+system_ids.tran = system.runInterval(()=>{
+    try{
+    tran_info.unsleep = ""
+    tran_info.list = ""
+    for(var n of world.getAllPlayers()){
+        tran_info.list += n.name + ","
+        if(!n.isSleeping){
+            tran_info.unsleep += n.name + ","
+        }
+    }
+    tran_info.list = tran_info.list.slice(0,tran_info.list.length -1)
+    tran_info.unsleep = tran_info.unsleep.slice(0,tran_info.unsleep.length -1)
+    tran_info.alltime = `${Math.round(system.currentTick/20)}s`
+    tran_info.worldspawn = pos_string(world.getDefaultSpawnLocation())
+    tran_info.count = String(world.getAllPlayers().length)
+    tran_info.items = String(item_count)
+    
+    var d = new Date()
+    tran_info.date = `${d.getFullYear()}.${d.getMonth()}.${d.getDate()}`
+    tran_info.time = `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`
+    
+    try{
+        for(var b of reset_boards){
+            var board = world.scoreboard.getObjective(b[0])
+            if(!un(board)){
+                for(var p of world.getAllPlayers()){
+                    if(!un(p.scoreboardIdentity)){
+                        var score = undefined
+                        try{
+                            score = board.getScore(p)
+                        }catch(err){}
+                        if(un(score)){
+                            try{
+                                board.setScore(p,b[1])
+                            }catch(err){}
+                        }
+                    }
+                }
             }
         }
-        var players = world.getAllPlayers()
-        for(var cf of players){
-        cf.onScreenDisplay.setActionBar("§e[清洁工]已清理所有掉落物")
+    }catch(err){}
+    }catch(err){}
+},40)
+
+system_ids.board = system.runInterval(()=>{
+    if(config.copy_boards !== ""){
+        for(var id of config.copy_boards.split(";")){
+            var ob = world.scoreboard.getObjective(id)
+            if(!un(ob)){
+                var ob_show = world.scoreboard.getObjective(id+"_")
+                if(un(ob_show)){
+                    ob_show = world.scoreboard.addObjective(id+"_",ob.displayName)
+                }
+                overworld.runCommand(`scoreboard players reset * ${id}_`)
+                for(var p of world.getAllPlayers()){
+                    if(ob.hasParticipant(p)){
+                        ob_show.setScore(p,ob.getScore(p))
+                    }
+                }
+            }
         }
-}
-
-function entity_to_entity(self,target){
-    tp_entity(self,target.dimension,target.location.x,target.location.y,target.location.z)
-}
-
-function tp_entity(entity,di,x,y,z){
-    entity.teleport({"x":x,"y":y,"z":z},di,entity.rotation.x,entity.rotation.y)
-}
-
-function get_pos(entity){
-    return "(" + String(Math.round(entity.location.x)) + "，" + String(Math.round(entity.location.y)) + "，" + String(Math.round(entity.location.z)) + ")"
-}
-
-function get_block_pos(block){
-    return "(" + String(Math.round(block.x)) + "，" + String(Math.round(block.y)) + "，" + String(Math.round(block.z)) + ")"
-}
-
-function save_trades(text){
-    trades.push(text)
-    save_all_trades()
-}
-
-function get_block(di,x,y,z){
-    var block = di.getBlock(new BlockLocation(x,y,z))
-    return block
-}
-
-function delete_trades(text){
-    if(trades.indexOf(text) > -1){
-        trades.splice(trades.indexOf(text),1)
     }
-    save_all_trades()
+},10)
+
+system_ids.lock = system.runInterval(()=>{
+    if(!config.game.lock){
+        return
+    }
+},10)
+
+system_ids.particle = system.runInterval(()=>{
+    for(var p of world.getAllPlayers()){
+        if(p.landing.mode === 1){
+            setActionBar(p,get_text("action.land"))
+            if(is_array(p.landing.points)){
+                if(p.landing.points.length === 2){
+                    show_range(p.landing.points[0].location,p.landing.points[1].location,p.dimension)
+                }
+            }
+        }
+    }
+},35)
+
+system_ids.lo = system.runInterval(()=>{
+    if(config.log.able && array_has(config.log.allow,"lo")){
+        for(var p of world.getAllPlayers()){
+            server_log(0,`Location:${get_block_pos_di(p)}`,get_player_path(p))
+        }
+    }
+},20*60)
+
+system_ids.tag = system.runInterval(()=>{
+    for(var p of world.getAllPlayers()){
+        for(var tag of p.getTags()){
+            if(tag.startsWith("usf.") && tag.indexOf(":") !== -1){
+                var type = tag.slice(4)
+                var text = type.slice(type.indexOf(":")+1)
+                type = type.slice(0,type.indexOf(":"))
+                switch(type){
+                    case "tag":
+                        set_chat_tag(p,(text === "Reset") ? "" : text)
+                        break
+
+                }
+
+                p.removeTag(tag)
+            }
+        }
+    }
+},5*20)
+
+
+var follow_index = 0
+system_ids.follow = system.runInterval(()=>{
+    for(var p of world.getAllPlayers()){
+        if(is_object(p.follow)){
+            if(!p.follow.player.isValid()){
+                reset_player_follow(p)
+                return
+            }
+            p.addEffect("night_vision",6)
+            switch(p.follow.type){
+                case 0:
+                    var lo = p.follow.player.getHeadLocation()
+                    var view = p.follow.player.getViewDirection()
+
+                    lo.x = lo.x - view.x*3
+                    lo.y = lo.y + 4
+                    lo.z = lo.z - view.z*3
+                    if(follow_index%15 === 0){
+                        follow_index = 0
+                        tp_entity(p,p.follow.player.dimension,lo.x,-10000,lo.z)
+                    }
+                    p.camera.setCamera("usf:example_player_effects",{
+                        location : lo,
+                        facingEntity : p.follow.player,
+                        easeOptions :{
+                            easeTime : 0.2
+                        }
+                    })
+                    break
+                case 1:
+                    var lo = {
+                        x : p.location.x,
+                        z : p.location.z,
+                        y : p.location.y - (-10000)
+                    }
+                    if(follow_index%15 === 0 && p.dimension.id !== p.follow.player.dimension.id){
+                        follow_index = 0
+                        lo = p.follow.player.location
+                        tp_entity(p,p.follow.player.dimension,lo.x,-10000 + lo.y,lo.z)
+                    }
+                    p.camera.setCamera("usf:example_player_effects",{
+                        location : lo,
+                        rotation : p.getRotation(),
+                        easeOptions :{
+                            easeTime : 0.2
+                        }
+                    })
+            }
+        }
+    }
+    follow_index += 1
+    
+},4)
+
+system_ids.second = system.runInterval(()=>{
+    for(var player of world.getAllPlayers()){
+        player.block_places = 0
+    }
+    
+    if(config.other.online !== ""){
+        var ids = config.other.online.split(";")
+        array_clear(ids,"")
+        for(var id of ids){
+            try{
+                var ob = world.scoreboard.getObjective(id)
+                if(!un(ob)){
+                    if(un(world.scoreboard.getObjective(id+"_"))){
+                        world.scoreboard.addObjective(id+"_",ob.displayName)
+                    }
+                    
+                    var nob = world.scoreboard.getObjective(id + "_")
+                    overworld.runCommand(`scoreboard players reset * "${id + "_"}"`)
+                    for(var p of ob.getParticipants()){
+                        try{
+                        if(!un(p.getEntity())){
+                            nob.setScore(p,ob.getScore(p))
+                        }}catch(err){}
+                    }
+                }
+            }catch(err){console.error(err)}
+        }
+    }
+    
+    var op = {
+        type : "bat",
+        tags : ["Float"]
+    }
+    for(var di of dimensions){
+        for(var bat of di.getEntities(op)){
+            bat.nameTag = tran_text(null,get_data("text",bat))
+            var lo = to_object(parse_json(get_data("lo",bat)))
+            if(is_string(lo.di)){
+                tp_entity(bat,get_di(lo.di),lo.x,lo.y,lo.z)
+            }
+        }
+    }
+},20)
+
+system_ids.land_test = system.runInterval(()=>{
+    for(var player of world.getAllPlayers()){
+        var land = get_land_by_pos(player.dimension,player.location)
+        
+        if(is_string(land.name)){
+            if(player.in_land !== land.id){
+                server_log(0,'In Land :'+String(land.name)+`(${get_name_by_id(land.creater)})`,get_player_path(player))
+            }
+            player.in_land = land.id
+            var text = ""
+            
+            var item = player.slots.getItem(player.selectedSlotIndex)
+            if(un(item)){item = ""}
+            else{item = item.typeId}
+            if(array_has(config.cd_items,item)){
+                text = `§e领地名称:${land.name}\n领地主:${get_name_by_id(land.creater)}\n领地ID:${land.id}`
+            }
+            else{
+                switch(land_member_level(player,land)){
+                    case 4:
+                        text += get_text("land.4")
+                        break
+                    case 3:
+                        text += get_text("land.3")
+                        break
+                    case 2:
+                        text += get_text("land.2")
+                        break
+                    case 1:
+                        text += get_text("land.1")
+                        break
+                    case 0:
+                        text += get_text("land.0")
+                        break
+                }
+                text += config.land.show.replaceAll("/name",get_name_by_id(land.creater)) 
+                if(land.wel !== ""){
+                    text += "\n§r" + land.wel
+                }
+            }
+            if(Date.now() - to_number(player.last_warn,0) > 1500){
+                setActionBar(player,text)
+            }
+        }else{
+            if(player.in_land !== ""){
+                player.in_land = ""
+                setActionBar(player,` `)
+            }
+        }
+    }
+},3)
+
+system_ids.name = system.runInterval(()=>{
+    for(var p of world.getAllPlayers()){
+        change_player_name(p)
+    }
+},100)
+
+system_ids.test = system.runInterval(()=>{
+    for(var player of world.getAllPlayers()){
+        
+        }
+          
+    
+},10)
+
+system_ids.chest_log = system.runInterval(()=>{
+    for(var pos of Object.keys(sign)){
+        var block = sign[pos].block
+        var record = false
+        if(block.isValid()){
+            if(block.typeId === sign[pos].id){
+                var entities = {}
+                try{
+                    entities = block.dimension.getEntities({
+                        location : block.location,
+                        maxDistance : 6,
+                        type : "player"
+                    })
+                }catch(err){}
+                if((is_array(entities) && entities.length === 0) || !is_array(entities)){
+                    record = true
+                }
+
+                var com = block.getComponent("minecraft:sign")
+                sign[pos].now = [com.getText("Front"),com.getText("Back")]
+            }
+        }else{
+            record = true
+        }
+
+        if(record){
+            for(var i=0;i<sign[pos].now.length;i++){
+                if(sign[pos].before[i] !== sign[pos].now[i]){
+                    server_log(0,`Sign Change${pos}:\nFrom:${sign[pos].before[i]}\nTo:${sign[pos].now[i]}`,"Sign")
+                }
+            }
+            delete sign[pos]
+        }
+    }
+
+    for(var pos of Object.keys(chest)){
+        var block = chest[pos].block
+        var none = false
+        if(block.isValid()){
+            if(block.typeId !== chest[pos].typeId){
+                none = true
+            }else{
+                var entities = {}
+                try{
+                    entities = block.dimension.getEntities({
+                        location : block.location,
+                        maxDistance : 6,
+                        type : "player"
+                    })
+                }catch(err){}
+                if((is_array(entities) && entities.length === 0) || !is_array(entities)){
+                    var items = chest[pos].items
+                    var new_items = {}
+                    var com = block.getComponent("minecraft:inventory").container
+                    for(var i=0;i<com.size;i++){
+                        var item = com.getItem(i)
+                        if(!un(item)){
+                            new_items[no_minecraft(item.typeId)] = to_number(new_items[no_minecraft(item.typeId)]) + item.amount
+                        }
+                    }
+                    var text = `${no_minecraft(block.typeId)}${pos} Close:\nPlayers:`
+                    for(var name of chest[pos].players){
+                        text += name + ","
+                    }
+                    text += "\nChanges:"
+                    var keys = Object.keys(items)
+                    for(var k of Object.keys(new_items)){
+                        if(!array_has(keys,k)){
+                            keys.push(k)
+                        }
+                    }
+                    for(var k of keys){
+                        text += `${k}(${to_number(new_items[k]) - to_number(items[k])});`
+                    }
+                    server_log(0,text,"Chest")
+                    delete chest[pos]
+                }
+            }
+        }else{
+            none = true
+        }
+        if(none){
+            var text = `${no_minecraft("block.typeId")}${pos} Close : No Data\nPlayers:`
+            for(var name of chest[pos].players){
+                text += name + ","
+            }
+            server_log(0,text,"Chest")
+            delete chest[pos]
+        }
+    }
+    
+},1*20)
+
+system_ids.long_log = system.runInterval(()=>{
+    if(config.log.able === false || log_config.able === false){
+        log_info = {
+            bb :{},
+            pb : {}
+        }
+        return
+    }
+    for(var name of Object.keys(log_info.bb)){
+        for(var id of Object.keys(log_info.bb[name])){
+            var block = log_info.bb[name][id]
+            var text = "Break " + id + "*" + String(block.length)
+            for(var pos of block){
+                text += pos
+            }
+            server_log(0,text,get_player_path({name:name}))
+        }
+    }
+    for(var name of Object.keys(log_info.pb)){
+        for(var id of Object.keys(log_info.pb[name])){
+            var block = log_info.pb[name][id]
+            var text = "Place " + id + "*" + String(block.length)
+            for(var pos of block){
+                text += pos
+            }
+            server_log(0,text,get_player_path({name:name}))
+        }
+    }
+    log_info = {
+        bb :{},
+        pb : {}
+    }
+    
+},30*20)
+
+
+
+system.group_mess = system.runInterval(()=>{
+    for(var g_id of Object.keys(group_mess)){
+        var g = get_group(g_id)
+        if(is_group(g)){
+            g.message = g.message.concat(group_mess[g_id])
+            if(g.message.length > 50){
+                g.message = g.message.slice(0,50)
+            }
+            save_group(g)
+        }
+    }
+    group_mess = {}
+},20*30)
+
+system_ids.time = system.runInterval(()=>{
+    if(config.time.able){
+        if(un(world.scoreboard.getObjective("time_show"))){
+            if(config.time.type === 0){
+                world.scoreboard.addObjective("time_show","游戏时间/秒")
+            }else{
+                world.scoreboard.addObjective("time_show","游戏时间/分钟")
+            }
+        }
+        if(un(world.scoreboard.getObjective("time"))){
+            world.scoreboard.addObjective("time","时间")
+        }
+
+        var time = world.scoreboard.getObjective("time")
+        var time_show = world.scoreboard.getObjective("time_show")
+
+        switch(config.time.type){
+            case 0:
+                for(var p of world.getAllPlayers()){
+                    if(!un(p.scoreboardIdentity)){
+                        time.addScore(p,1)
+                    }
+                }
+                break
+            case 1:
+                cache.time += 1
+                if(cache.time %60 === 0){
+                    for(var p of world.getAllPlayers()){
+                        if(!un(p.scoreboardIdentity)){
+                            time.addScore(p,1)
+                        }
+                    }
+                }
+                break
+        }
+
+        if(config.time.show){
+            world.scoreboard.setObjectiveAtDisplaySlot("List",{
+                objective : time_show,
+            })
+            for(var p of time_show.getParticipants()){
+                time_show.removeParticipant(p)
+            }
+            for(var p of world.getAllPlayers()){
+                if(!un(p.scoreboardIdentity)){
+                    time_show.setScore(p,to_number(time.getScore(p),0))
+                }
+            }
+        }
+    }
+},20)
+
+function afterGameRuleChange(event){
+    chat("0")
+    if(config.rule.able){
+        var rules = to_object(parse_json(config.rule.data))
+        chat(event.rule)
+        if(!un(rules[event.rule])){
+            
+            if(rules[event.rule] !== event.value){
+                switch(event.rule){
+                    case "commandBlocksEnabled":
+                        world.gameRules.commandBlocksEnabled = rules[event.rule]
+                        break
+                    case "doImmediateRespawn":
+                        world.gameRules.doImmediateRespawn = rules[event.rule]
+                        break
+                    case "keepInventory":
+                        world.gameRules.keepInventory = rules[event.rule]
+                        break
+                    case "mobGriefing":
+                        world.gameRules.mobGriefing = rules[event.rule]
+                        break
+                    case "pvp":
+                        world.gameRules.pvp = rules[event.rule]
+                        break
+                    case "showCoordinates":
+                        world.gameRules.showCoordinates = rules[event.rule]
+                        break
+                    case "tntExplodes":
+                        world.gameRules.tntExplodes = rules[event.rule]
+                        break
+                    case "doMobSpawning":
+                        world.gameRules.doMobSpawning = rules[event.rule]
+                        break
+                }
+            }
+        }
+    }
 }
 
-function save_all_trades(){
-    var item = Infos.getItem(4)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
+function push_text( id , text1 , text2 ){
+    fixed_texts.ZN[id] = text1
+    if(is_string(text2)){
+        fixed_texts.ZW[id] = text2
     }
-    if(trades.length > 0){
-        item.setLore(trades)
-    }
-    else{
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-    Infos.setItem(4,item)
+    
+    return id
 }
 
-function kick(player,reason,again = false){
-    if(player.kick !== true && settings.kick === true){
-    if(again === false){
-        ban_list.push(player.name)
-        save_ban_list()
+function get_di(id){
+    return world.getDimension(id)
+}
+
+function log( text , replacer = [] , hint = "" , mode = 0 ){
+    // mode 0-管理员屏幕 1-控制台 2-管理员+控制台
+    text = to_string(text)
+    text = format(text,replacer)
+    switch(hint){
+        case "tip":
+            hint = "§6[提示]§r"
+            break
+        case "info":
+            hint = "§f[信息]§r"
+            break
+        case "error":
+            hint = "§c[错误]§r"
+            break
+        case "warn":
+            hint = "§e[警告]§r"
+            break
+        case "lead":
+            hint = "§7[指引]§r"
+            break
     }
-    if(is_op(player) === false){
-    player.kick = true
-    run_command("kick \""+player.name + "\" "+String(reason))
-    log("§e将玩家" + player.name + "踢出游戏，原因："+String(reason),true)
+    text = "§3[USFLog]§r" + hint + text
+    if(mode !== 1){
+        var t = []
+        for(var p of world.getAllPlayers()){
+            if(get_op_level(p)>0){
+                t.push(p)
+            }
+        }
+        chat(text,t,false)
     }
+    if(mode !== 0){
+        console.warn(clear_colour(text))
     }
 }
 
-world.events.beforeDataDrivenEntityTriggerEvent.subscribe(event => {
-    return 0
-    if(event.entity.typeId === "minecraft:player"){
-        switch(event.id){
-            case "server:open_chest":
-                event.entity.chesting = true
-                break;
-            case "server:open_chest":
-                event.entity.chesting = false
-                break;
+function get_ban_list(){
+    return to_array(parse_json(get_data("ban")),[])
+}
+
+
+function score_event(player , id){
+    if(config.score.able == false || un(player.scoreboardIdentity) || !array_has(config.scores,id)){
+        return
+    }
+    var board = world.scoreboard.getObjective(config.score.id)
+    if(!is_object(board)){
+        world.scoreboard.addObjective(config.score.id,"积分")
+        board = world.scoreboard.getObjective(config.score.id)
+    }
+
+    var c = get_score_config()[id]
+    if(is_array(c)){
+        var current = to_number(player.info.score[id],0)
+        if(c[1] > current){
+            player.info.score[id] = current + c[0]
+            board.addScore(player,c[0])
+            save_player_info(player)
+        }
+    }
+}
+
+function get_items(id){
+    var all = []
+    try{
+        var items = overworld.runCommand(`strcuture load items.${id} 0 -64 0`)
+    }catch(err){
+        return []
+    }
+    if(items.successCount === 1 && !un(chest_block)){
+        var com = chest_block.getComponent("minecraft:inventory").container
+        for(var i =0 ;i<com.size;i++){
+            all.push(com.getItem(i))
+        }
+        return all
+    }
+    return []
+
+}
+
+
+
+function kick(player , reason = "" , force = false){
+    if(force === false && get_op_level(player)>0){
+        return
+    }
+    overworld.runCommand(`kick "${player.name}" ${reason}`)
+}
+
+function get_player_path(player){
+    return `Players/${player.name}`
+}
+
+function chat(mess,targets = null,tran = true){
+    if(is_array(targets)){
+        for(var p of targets){
+            var new_mess = mess
+            if(tran){
+                new_mess = tran_text(p,new_mess)
+            }
+            p.sendMessage(new_mess)
         }
     }else{
-    }
-
-})
-
-
-function save_team(index){
-    var text = "team，" + teams[index].id + "，" + teams[index].name + "，o；" + teams[index].owner
-    for(var cf=0;cf<teams[index].member.length;cf++){
-        text += "，m；" + teams[index].member[cf]
-    }
-    if(teams[index].pos1.length === 5){
-        text += "，p1；" + teams[index].pos1[0] + "；" + teams[index].pos1[1] + "；" + teams[index].pos1[2] + "；" + teams[index].pos1[3] + "；" + teams[index].pos1[4]
-    }
-    if(teams[index].pos2.length === 5){
-        text += "，p2；" + teams[index].pos2[0] + "；" + teams[index].pos2[1] + "；" + teams[index].pos2[2] + "；" + teams[index].pos2[3] + "；" + teams[index].pos2[4]
-    }
-    if(teams[index].pos3.length === 5){
-        text += "，p3；" + teams[index].pos3[0] + "；" + teams[index].pos3[1] + "；" + teams[index].pos3[2] + "；" + teams[index].pos3[3] + "；" + teams[index].pos3[4]
-    }
-    teams[index].tag = text
-    save_all_teams()
-}
-
-function save_all_teams(){
-        var item = Infos.getItem(3)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-        var text = []
-        for(var cf=0;cf<teams.length;cf++){
-            text.push(teams[cf].tag)
+        for(var p of world.getAllPlayers()){
+            var new_mess = mess
+            if(tran){
+                new_mess = tran_text(p,new_mess)
+            }
+            p.sendMessage(new_mess)
         }
-        item.setLore(text)
-        Infos.setItem(3,item)
+    }
 }
 
 
-function get_team_by_player(player,type = 0){
-    //type=0 我的队伍  type=1  我加入的队伍
-    switch(type){
-        case 0:
-            var tag = get_tag(player,"myTeam,")
-            if(tag === ""){
-                return ""
-            }
-            else{
-                tag = tag.split(",")[1]
-                for(var cf=0;cf<teams.length;cf++){
-                    if(tag === teams[cf].id){
-                        if(teams[cf].member.indexOf(player.name) !== -1){
-                            return cf
-                        }
-                        else{
-                            player.removeTag(get_tag(player,"myTeam,"))
-                            return ""
-                        }
+function get_owners(){
+    var os = parse_json(get_data("owners"))
+    os = to_array(os,[])
+    if(os.length === 0){
+        has_owner = false
+    }else{ has_owner = true}
+    return os
+}
+
+function player_add_group(player , id){
+    var group_ids = to_array(parse_json(get_data("groups",player)),[])
+    group_ids.push(id)
+    save_data("groups",to_json(group_ids),player)
+}
+
+function is_owner(player){
+    var id = ""
+    if(is_object(player)){
+        id = get_id(player)
+    }else{
+        id = player
+    }
+    if(get_owners().indexOf(id) !== -1){
+        return true
+    }
+    return false
+}
+
+function get_text(id){
+    var text = dictionary[id]
+    if(config.language === 1){
+        text = fixed_texts.ZW[id]
+    }
+    if(text == undefined){
+        text = fixed_texts.ZN[id]
+    }
+    if(text == undefined){
+        return t.get_text(id,to_number(config.language),0)
+    }
+    return text
+}
+
+function get_land(id){
+    var data = get_data(`land.${id}`)
+    if(data === ""){
+        return {}
+    }else{
+        return parse_json(data)
+    }
+}
+
+function save_player_lands(player){
+    save_data("lands",to_json(player.lands),player)
+}
+
+
+function is_between(count , c1 , c2){
+    if(count >= c1 && count <= c2){
+            return true
+    }
+    if(count === c1 && count === c2){
+        return true
+    }
+    if(count <= c1 && count >= c2){
+        return true
+    }
+    return false
+}
+
+function get_safe_area(lo,l){
+    var area = [Math.max(l.from[0] - lo.x,l.to[0] - lo.x),Math.max(l.from[1] - lo.z,l.to[1] - lo.z)]
+    return area
+}
+
+function int_location(loc){
+    var lo = {...loc}
+    lo.x = Math.floor(lo.x)
+    lo.z = Math.floor(lo.z)
+    return lo
+}
+
+
+
+function get_op_level(player){
+    if(is_owner(player)){return 2}
+    if(is_op(player)){return 1}
+    return 0
+}
+
+function is_op(player){
+    var id = ""
+    if(is_object(player)){
+        id = get_id(player)
+    }else{
+        id = player
+    }
+    if(ops.indexOf(id) !== -1){
+        return true
+    }
+    return false
+}
+
+function tp_entity(entity,di,x,y,z,show = false,keep = false,back = false){
+    system.run(()=>{
+    if(show && is_player(entity)){
+        show_title(entity,"正在传送...")
+    }
+    if(back){
+        entity.back_pos = [entity.dimension,entity.location.x,entity.location.y,entity.location.z]
+    }
+    entity.teleport({"x":x,"y":y,"z":z},{dimension:di,keepVelocity:keep})
+    })
+    if(array_has(config.log.allow,"tp") &&is_player(entity)){
+        server_log(0,`TP:${get_block_pos_di({dimension:di,location:{x:x,y:y,z:z}})}`,get_player_path(entity))
+    }
+}
+
+function no_minecraft(text){
+    return text.replaceAll("minecraft:","mc:")
+}
+
+function show_title(player,text){
+    try{
+    player.onScreenDisplay.setTitle(tran_text(player,text))
+    }catch(err){}
+}
+
+function is_player(player){
+    if(!is_object(player) || player == null){
+        return
+    }
+    return player.typeId === "minecraft:player" ? true : false
+}
+
+function save_player_info(player){
+    save_data("info",to_json(player.info),player)
+}
+
+function get_string_length(str,charset){
+    var total = 0,
+        charCode,
+        i
+    charset = charset ? charset.toLowerCase() : '';
+    for(var i = 0;i <  str.length; i++){
+        charCode = str.charCodeAt(i);
+        if(charCode <= 0x007f) {
+            total += 1;
+        }else if(charCode <= 0x07ff){
+            total += 2;
+        }else if(charCode <= 0xffff){
+            total += 3;
+        }else{
+            total += 4;
+        }
+    }
+    return total;
+}
+
+function get_name_by_id(id){
+    if(!un(id_names[id])){
+        return id_names[id]
+    }
+    return "离线玩家"
+}
+
+function object_override(object,format){
+    for(var cf of Object.keys(format)){
+        if(un(object[cf])){
+            if(is_object(format[cf])){
+                if(is_array(format[cf])){
+                    object[cf] = [...format[cf]]
+                }else{
+                    if(format[cf] == null){
+                        object[cf] = null
+                    }else{
+                        object[cf] = {}
+                        object_override(object[cf],format[cf])
                     }
                 }
+            }else{
+                object[cf] = format[cf]
             }
-            break;
-        case 1:
-            var tag = get_tag(player,"addTeam,")
-            if(tag === ""){
-                return ""
+            
+        }
+        if(is_object(object[cf]) && !is_array(object[cf]) && format[cf] != null){
+            object_override(object[cf], format[cf])
+        }
+    }
+}
+
+function load_config(){
+    config = to_object(parse_json(get_data("config")),{})
+    object_override(config , usf_config)
+}
+
+function save_config(){
+    save_data("config",to_json(config))
+}
+
+function get_board_ids(){
+    return to_array(parse_json(get_data("board_ids")),[])
+}
+
+function get_boards(){
+    var boards = {}
+    var ids = get_board_ids()
+    for(var id of ids){
+        var data = get_data(id)
+        if(data !== ""){
+            boards[id] = to_object(parse_json(data))
+        }
+    }
+    return boards
+}
+
+function is_group(v){
+    if(Object.keys(v).length > 0){
+        return true
+    }
+    return false
+}
+
+function get_group(id){
+    return to_object(parse_json(get_data("group"+id)),{})
+}
+
+function save_group(g){
+    save_data("group"+g.id , to_json(g))
+    if(!array_has(groups,g.id)){
+        groups.push(g.id)
+        save_groups()
+    }
+}
+
+function save_groups(){
+    save_data("group_ids",to_json(groups))
+}
+
+function get_random_group_id(){
+    var id = random_int(899999) + 100000
+    while(is_group(get_group(id))){
+        id = random_int(899999) + 100000
+    }
+    return id
+}
+function get_random_land_id(){
+    var id = random_int(899999) + 100000
+    while(array_has(lands.ids,id)){
+        id = random_int(899999) + 100000
+    }
+    return id
+}
+
+function get_player_groups(player){
+    var group_ids = to_array(parse_json(get_data("groups",player)),[])
+    var my_groups = []
+    for(var id of group_ids){
+        var g = parse_json(get_data("group"+id))
+        if(is_group(g)){
+            if(g.creater === get_id(player) || array_has(g.member,get_id(player))){
+                my_groups.push(g)
             }
-            else{
-                tag = tag.split(",")[1]
-                for(var cf=0;cf<teams.length;cf++){
-                    if(tag === teams[cf].id){
-                        if(teams[cf].member.indexOf(player.name) !== -1){
-                            return cf
-                        }
-                        else{
-                            player.removeTag(get_tag(player,"addTeam,"))
-                            return ""
-                        }
-                    }
-                }
-            }
-            break;
+        }
+    }
+
+    group_ids = []
+    for(var g of my_groups){
+        group_ids.push(g.id)
+    }
+    save_data("groups",to_json(group_ids),player)
+
+    return my_groups
+}
+
+function get_score_config(){
+    return to_object(parse_json(get_data("score_config")),{})
+}
+
+
+
+
+
+function reload_all(){
+    if(Date.now() - parse_number(get_data("reset")) <= 30000){
+        save_data("owners","")
+        log("最高管理员已被重置!",[],"warn",2)
+    }
+
+    if(un(world.scoreboard.getObjective("usf_data"))){
+        world.scoreboard.addObjective("usf_data","USF数据")
+    }
+    
+    dictionary = to_object(parse_json(get_data("dictionary")),{})
+     
+    groups = to_array(parse_json(get_data("group_ids")),[])
+    var score_config = get_score_config()
+    object_override(score_config,data_format.score)
+    save_data("score_config",to_json(score_config))
+
+    public_pos = get_public_pos()
+    world_pos = to_array(parse_json(get_data("world_pos")),[])
+
+    lock_config = to_array(parse_json(get_data("lock_items")))
+
+    get_owners()
+
+    reset_boards = to_array(parse_json(get_data("reset_boards")),[])
+
+    lands.min = to_array(parse_json(get_data("lands_min")),[])
+    lands.max = to_array(parse_json(get_data("lands_max")),[])
+    lands.ids = to_array(parse_json(get_data("lands_ids")),[])
+
+    config = parse_json(get_data("config"))
+    object_override(config,usf_config)
+    
+    ids = to_array(parse_json(get_data("ids")),[])
+    id_names = to_object(parse_json(get_data("id_names")),{})
+    ops = to_array(parse_json(get_data("op")),[])
+    
+    white_words = to_array(parse_json(get_data("white_words")),[])
+}
+
+function save_reset_boards(){
+    save_data("reset_boards",to_json(reset_boards))
+}
+
+function save_lock_config(){
+    save_data("lock_items",to_json(lock_config))
+}
+
+function setActionBar(player,text,tran = false){
+    var content = text
+    if(tran){
+        content = tran_text(player,content)
+    }
+    try{
+        player.onScreenDisplay.setActionBar(content)
+    }catch(eer){
+        player.runCommandAsync(`titleraw @s actionbar {\"rawtext\": [{"text":"${content}"}]}`)
+    }
+}
+
+function clear_data(id){
+    world.setDynamicProperty(namespace+id)
+}
+
+function save_data(id , content , en = null){
+    if(en === null){
+        world.setDynamicProperty(namespace+id,content)
+    }else{
+        en.setDynamicProperty(namespace+id,content)
+    }
+}
+function get_data(id , en = null){
+    var data = ""
+    if(en === null){
+        data = world.getDynamicProperty(namespace+id)
+    }else{
+        data = en.getDynamicProperty(namespace+id)
+    }
+    
+    if(is_string(data)){
+        return data
     }
     return ""
 }
 
-
-function reload_all(){
-    var run_time = Date.now()
-    //1 -63 1 ~ 3 -61 3
-    InfoBlock = overworld.getBlock(new BlockLocation(2 , -62 , 2))
-    if(typeof(InfoBlock) === "object" && InfoBlock !== null){
-        if(InfoBlock.typeId === "minecraft:chest"){
-            Infos = InfoBlock.getComponent("minecraft:inventory").container
-            if(typeof(Infos)==="object"){
-                load_all_teams()
-                load_totals()
-                load_ban_list()
-                load_settings()
-                load_trades()
-                load_lands()
-                world.say("§e服务器信息加载完成")
-                beload = true
+function get_id(player){
+    if(!is_string(player.usf_id)){
+        var id = get_data("id",player)
+        if(id === ""){
+            if(Date.now() !== last_id){
+                id = String(last_id)
+                save_data("id",id,player)
+                last_id ++
             }
         }
-        else{
-            InfoBlock.setType(MinecraftBlockTypes.chest)
-            return 0
+        player.usf_id = id
+    }
+    return player.usf_id
+}
+function get_block_pos(block){
+    return `(${String(Math.round(block.location.x))},${String(Math.round(block.location.y))},${String(Math.round(block.location.z))})`
+}
+
+function get_block_pos_di(block){
+    var text = "0:"
+    if(block.dimension.id === "minecraft:nether"){
+        text = "1:"
+    }
+    if(block.dimension.id === "minecraft:the_end"){
+        text = "2:"
+    }
+    return `(${text}${String(Math.round(block.location.x))},${String(Math.round(block.location.y))},${String(Math.round(block.location.z))})`
+}
+
+function get_di_num(di){
+    var text = "0"
+    if(di.id === "minecraft:nether"){
+        text = "1"
+    }
+    if(di.id === "minecraft:the_end"){
+        text = "2"
+    }
+    return text
+}
+
+function get_player_by_id(id){
+    if(un(id_player[id])){
+        return null
+    }
+    return id_player[id]
+}
+
+function change_player_name(player){
+    player.nameTag = tran_text(player,config.name.format)
+}
+
+function reset_player_data(player){
+
+    get_id(player)
+    
+    if(array_has(get_ban_list(),String(get_id(player))) || array_has(get_ban_list(),player.name)){
+        kick(player,"你已被封禁！")
+    }
+
+    player.info = parse_json(get_data("info",player))
+    player.slots = player.getComponent("minecraft:inventory").container
+    player.lands = []
+    player.store_record = to_object(get_data("store_record",player))
+    player.health = player.getComponent("minecraft:health")
+    for(var id of to_array(parse_json(get_data("lands",player)))){
+        if(array_has(lands.ids,id)){
+            player.lands.push(id)
         }
     }
-    world.getDimension("minecraft:overworld").runCommandAsync("fill 0 -64 0 4 -60 4 bedrock 0 outline")
-    script_check_run(`tellraw @s {"rawtext":[{"text":"` + "加载用时" + String(Date.now() - run_time) +`"}]}`)
+    save_player_lands(player)
+
+    player.last_tp = 0
+    player.landing = {
+        points : [],
+        mode : 0 ,
+    }
+    player.pos = get_player_pos(player)
+    
+    player.talk = {
+        mode : 0,
+        id : ""
+    }
+    id_player[get_id(player)] = player
+    if(config.tip.able){
+        chat(get_data("tip"),[player],true)
+    }
+
+    change_player_name(player)
+    return
 }
 
-function load_totals(){
-    var item = Infos.getItem(0)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        if(lores.length > 0){
-            totals = lores
+function get_chat_tag(player){
+    var data = get_data("chat_tag",player)
+    if(data === ""){
+        if(config.chat.tag === ""){
+            return player.dimension.name
+        }else{
+            return config.chat.tag
         }
     }
-    else{
-        Infos.setItem(0,new ItemStack(MinecraftItemTypes.apple))
-    }
+    return data + "§r"
 }
-function load_trades(){
-    var item = Infos.getItem(4)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        if(lores.length > 0){
-            trades = lores
+
+function set_chat_tag(p,tag){
+    save_data("chat_tag",tag,p)
+}
+
+function get_player_personal_pos(player){
+    return to_array(parse_json(get_data("pos",player)),[])
+}
+
+function get_public_pos(){
+    return to_array(parse_json(get_data("public_pos")),[])
+}
+
+function save_public_pos(){
+
+    var new_pos = []
+    for(var p of public_pos){
+        if(is_string(p.name)){
+            new_pos.push(p)
         }
     }
-    else{
-        Infos.setItem(4,new ItemStack(MinecraftItemTypes.apple))
-    }
+    save_data("public_pos",to_json(new_pos))
+    public_pos = new_pos
 }
 
-function create_lands(land){
-    if(typeof(lands[land.di]) !== "object"){
-        lands[land.di] = {}
-    }
-    if(typeof(lands[land.di][land.id]) !== "object"){
-        lands[land.di][land.id] = []
-    }
-    lands[land.di][land.id].push(land)
-}
+function save_world_pos(){
 
-function load_lands(){
-    var item = Infos.getItem(5)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        if(lores.length > 0){
-        //维度,id,名字,x,y,z,dx,dy,dz,owner,member
-            for(var cf of lores){
-                var land = {
-                    "di":"",
-                    "id":"",
-                    "name":"",
-                    "x":0,
-                    "y":0,
-                    "z":0,
-                    "dx":0,
-                    "dy":0,
-                    "dz":0,
-                    "owner":"",
-                    "member":[]
-                }
-                var text = cf.split("，")
-                land.di = text[0]
-                land.id = text[1]
-                land.id = text[2]
-                for(var cf1=3;cf1<text.length;cf1++){
-                    var land_info = text.split("：")
-                    if(land_info.length === 2){
-                        switch(land_info[0]){
-                            case "o":
-                                land.owner = land_info[1]
-                                break;
-                            case "m":
-                                land.member.push(land_info[1])
-                                break;
-                            case "x":
-                                land.x = parseInt(land_info[1])
-                                break;
-                            case "y":
-                                land.y = parseInt(land_info[1])
-                                break;
-                            case "z":
-                                land.z = parseInt(land_info[1])
-                                break;
-                            case "dx":
-                                land.dx = parseInt(land_info[1])
-                                break;
-                            case "dy":
-                                land.dy = parseInt(land_info[1])
-                                break;
-                            case "dz":
-                                land.dz = parseInt(land_info[1])
-                                break;
-                            
-                        }
-                    }
-                }
-                if(typeof(lands[land.di]) !== "object"){
-                    lands[land.di] = {}
-                }
-                if(typeof(lands[land.di][land.id]) !== "object"){
-                    lands[land.di][land.id] = []
-                }
-                lands[land.di][land.id].push(land)
-            }
-            
+    for(var p of world_pos){
+        if(!is_string(p.name)){
+            world_pos.splice(world_pos.indexOf(p),1)
         }
     }
-    else{
-        Infos.setItem(2,new ItemStack(MinecraftItemTypes.apple))
-    }
+    save_data("world_pos",to_json(world_pos))
 }
 
-
-function load_ban_list(){
-    var item = Infos.getItem(1)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        for(var cf of lores){
-            ban_list.push(cf)
-            
-        }
+function get_mode(player){
+    switch(player.getGameMode()){
+        case "creative":
+            return 1
+            break
+        case "adventure":
+            return 2
+            break
+        case "spectator":
+            return 3
+            break
     }
-    else{
-        Infos.setItem(1,new ItemStack(MinecraftItemTypes.apple))
-    }
-}
-
-function load_all_teams(){
-    var item = Infos.getItem(3)
     return 0
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        for(var cf of lores){
-            load_team(cf)
-        }
-    }
-    else{
-        Infos.setItem(3,new ItemStack(MinecraftItemTypes.apple))
+}
+
+function set_mode(player,mode){
+    switch(mode){
+        case 0:
+            player.setGameMode("survival")
+            break
+        case 1:
+            player.setGameMode("creative")
+            break
+        case 2:
+            player.setGameMode("adventure")
+            break
+        case 3:
+            player.setGameMode("spectator")
+            break
     }
 }
 
+//事件
 
-function load_settings(){
-    var item = Infos.getItem(2)
-    if(typeof(item) === "object"){
-        var lores = item.getLore()
-        for(var cf of lores){
-            var text = cf.split("，")
-            switch(text[0]){
-                case "kick":
-                    if(text[1] === "false"){
-                        settings.kick = false
-                    }else{
-                        settings.kick = true
-                    }
-                    break;
-                case "team_id":
-                    settings.team_id = parseInt(text[1])
-                    team_id = parseInt(text[1])
-                    break;
+function get_chat_players(){
+    var ps = []
+    for(var p of world.getAllPlayers()){
+        if(p.info.block === false){
+            ps.push(p)
+        }
+    }
+    return ps
+}
+
+function afterEntityDie(event){
+    var entity = event.deadEntity
+    var source = event.damageSource
+    var cause = source.cause
+    var hurt_entity = source.damagingEntity
+    
+    if(entity.typeId === "minecraft:bat" && entity.hasTag("Float")){
+        var bat = entity.dimension.spawnEntity("minecraft:bat<usf:text>",entity.location)
+        save_data("lo",get_data("lo",entity),bat)
+        save_data("name",get_data("name",entity),bat)
+        save_data("text",get_data("text",entity),bat)
+        if(!bat.hasTag("Float")){
+            bat.addTag("Float")
+        }
+    }
+
+    if(is_player(entity)){
+        var text = "Killed " + get_block_pos_di(entity)
+        entity.last_die = {
+            x:entity.location.x,
+            y:entity.location.y,
+            z:entity.location.z,
+            di : entity.dimension
+        }
+        if(!un(hurt_entity)){
+            if(is_player(hurt_entity)){
+                text += " By " + hurt_entity.name
+                score_event(hurt_entity,"pvp")
             }
-            
+        }
+        text += `(Cause:${cause})`
+        if(array_has(config.log.allow,"die")){
+            server_log(0,text,get_player_path(entity))
         }
     }
-    else{
-        Infos.setItem(2,new ItemStack(MinecraftItemTypes.apple))
-    }
-}
-
-
-function save_ban_list(){
-    var item = Infos.getItem(1)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-    if(ban_list.length > 0){
-        item.setLore(ban_list)
-    }
-    else{
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-    Infos.setItem(1,item)
-}
-
-
-function save_settings(){
-    var item = Infos.getItem(2)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
-    }
-        var text = []
-        for(var cf in settings){
-            text.push(cf+"，"+String(settings[cf]))
+    if(!un(hurt_entity)){
+        if(is_player(hurt_entity)){
+            if(array_has(config.log.allow,"kill")){
+                var text = `Kill `
+                if(is_player(entity)){
+                    text += entity.name
+                }else{
+                    text += no_minecraft(entity.typeId)
+                }
+                text += get_block_pos_di(hurt_entity)
+                server_log(0,text,get_player_path(hurt_entity))
+            }
+            if(entity.matches({families:["monster"]})){
+                score_event(hurt_entity,"kill")
+            }
         }
-        item.setLore(text)
-        Infos.setItem(2,item)
+    }
 }
 
-function save_totals(){
-    var item = Infos.getItem(0)
-    if(typeof(item) !== "object"){
-        item = new ItemStack(MinecraftItemTypes.apple)
+function beforeExplosion(event){
+    var entity = event.source
+    var blocks = event.getImpactedBlocks()
+    if(config.land.able){
+        blocks = []
+        for(var b of event.getImpactedBlocks()){
+            var l = get_land_by_pos(b.dimension,b.center())
+            if(!is_string(l.name)){
+                blocks.push(b)
+            }
+        }
     }
-    item.setLore(totals)
-    Infos.setItem(0,item)
+    if(!un(entity)){
+        if(config.game.creeper){
+             if(entity.typeId === "minecraft:creeper"){
+                blocks = []
+            }
+        }
+    }
+    event.setImpactedBlocks(blocks)
+}
+
+function reset_lock_item(player){
+    try{
+    for(var i =0;i<player.slots.size;i++){
+        var item = player.slots.getItem(i)
+        if(!un(item)){
+            var lore = item.getLore()
+            if(lore.length === 1){
+                if(lore[0] === "usf:Lock"){
+                    player.slots.setItem(i)
+                }
+            }
+        }
+    }
+
+    for(var items of lock_config){
+        try{
+        var item = player.slots.getItem(items[0])
+        if(un(item)){
+            item = new mc.ItemStack(items[1],items[2])
+            item.setLore(["usf:Lock"])
+            item.lockMode = "slot"
+            player.slots.setItem(items[0],item)
+        }
+        }catch(err){}
+    }
+    }catch(err){}
+}
+
+function run_command(player,com){
+    com = com.slice(1) + " "
+    var commands = []
+    var is_in = false
+    //如果为true，则正在引号内
+    var last_char = 0
+    for(var i=0 ; i<com.length; i++){
+        var c = com.charAt(i)
+        if(c === "\""){
+            is_in = is_in ? false : true
+        }
+        if(c === " " && !is_in){
+            var part = com.slice(last_char,i).replaceAll("\"","")
+            commands.push(part)
+            last_char = i+1
+        }
+    }
+    
+    if(commands.length <1){
+        return
+    }
+    
+    if(!array_has(config.commands,commands[0]) && commands[0] !== "usf"){
+        return
+    }
+
+    switch(commands[0]){
+        case "land" : 
+            if(player.landing.points.length === 2){
+                createLandBar(player)
+            }else{
+                show_title(player,get_text("land.two"))
+            }
+            break
+        case "unsleep":
+            chat(get_text("unsleep")+`${tran_info.unsleep}`,[player])
+            break
+        case "home":
+            var poss = []
+            for(var pos of player.pos){
+                if(pos.home){
+                    poss.push(pos)
+                }
+            }
+            if(poss.length === 0){
+                chat(get_text("home.none"),[player])
+                return
+            }
+            if(poss.length === 1){
+                to_pos(player,poss[0])
+                chat(get_text("home.back"),[player])
+            }
+            else{
+                var ui = new btnBar()
+                ui.title = get_text("home.select")
+                ui.body = get_text("home.select2")
+                ui.busy = null
+                for(var pos of poss){
+                    ui.btns.push({
+                        text : `[${get_di(pos.di).name}]${pos.name}`,
+                        icon : pictures[pos.icon],
+                        op : {
+                            "pos" : pos
+                        },
+                        func : (op)=>{
+                            to_pos(player,op.pos)
+                            chat(get_text("home.back"),[player])
+                        }
+                    })
+                }
+                ui.show(player)
+            }
+            break
+        case "cd":
+            cdBar(player)
+            break
+        case "die":
+            player.kill()
+            break
+        case "back":
+            var die = player.last_die
+            if(!un(die)){
+                tp_entity(player,die.di,die.x,die.y,die.z,true)
+            }
+            break
+        case "usf":
+            chat(version_text,[player])
+            break
+        case "op":
+            opBar(player)
+            break
+        case "tpr":
+            var now = Date.now()
+            if((config.tp.random_range > 0 && now - player.last_tp > config.tp.down*1000) && (player.dimension.id !== "minecraft:the_end" || config.tp.random_end === true)){
+                random_tp(player,)
+            }
+            else{
+                chat("§e[传送系统]当前无法进行传送！")
+            }
+            break
+        case "tpaccept":
+            if(!un(player.tpa)){
+                if(Date.now() < player.tpa.time && player.tpa.goal.isValid()){
+                    var goal = player.tpa.goal
+                    if(player.tpa.mode === 1 ){
+                        tp_entity(player,goal.dimension,goal.location.x,goal.location.y,goal.location.z,true,false,true)
+                    }else{
+                        tp_entity(goal,player.dimension,player.location.x,player.location.y,player.location.z,true,false,true)
+                    }
+                }
+            }else{
+                chat(get_text("tp.fail"),[player])
+            }
+            break
+    }
+}
+
+function afterEntityHitBlock(event){
+    var block = event.hitBlock
+    var player = event.damagingEntity
+    if(is_player(player)){
+        
+    }
 }
 
 
-function add_team(info,owner){
-    var text = "team，" + info.id + "，" + info.name + "，o；" + info.owner
-    for(var cf=0;cf<info.member.length;cf++){
-        text += "，m；" + info.member[cf]
-    }
-    var team = info
-    team.tag = text
-    teams.push(team)
-    owner.addTag("myTeam,"+ String(team_id))
-    team_id ++;
-    settings.team_id ++
-    save_all_teams()
-    save_settings()
-    add_score(owner,-500,true)
+
+function afterEntityHitEntity(event){
+    var hitter = event.damagingEntity
+   
 }
 
-function load_team(info){
-    var team = {
-        tag : info,
-        name : "",
-        id : "",
-        owner : "",
-        member : [],
-        pos1: [],
-        pos2 : [],
-        pos3 : [],
+function chatBoardBar(player,block,creater){
+    if(!config.other.chat_board){
+        chat(get_text("board.diable"),[player])
     }
-    var texts = info.split("，")
-    if(texts.length > 3){
-        team.name = texts[2]
-        team.id = texts[1]
-        for(var cf=3;cf < texts.length;cf++){
-            var infos = texts[cf].split("；")
-            switch(infos[0]){
-                case "m":
-                    team.member.push(infos[1])
-                    break;
-                case "o":
-                    team.owner = infos[1]
-                    break;
-                case "p1":
-                    team.pos1 = [ infos[1] , infos[2] , infos[3] , infos[4] , infos[5]]
-                    break;
-                case "p2":
-                    team.pos2 = [ infos[1] , infos[2] , infos[3] , infos[4] , infos[5]]
-                    break;
-                case "p3":
-                    team.pos3 = [ infos[1] , infos[2] , infos[3] , infos[4] , infos[5]]
-                    break;
+
+    var com = block.getComponent("minecraft:inventory").container
+    var item = com.getItem(0)
+    var content = to_array(parse_json(get_data("content",item)))
+    var ui = new btnBar()
+    ui.body = content
+    ui.title = get_text("board")
+    ui.btns = [{
+        text : get_text("board.go"),
+        icon : ui_icon.edit,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = get_text("board.new")
+            ui2.input("text",get_text("board.content"),get_text("input"),"")
+            ui2.cancel = ()=>{
+                chatBoardBar(player,block,creater)
+            }
+            ui2.show(player,(r)=>{
+                var text = config.chat.format
+                text = tran_text(player,text)
+                text = text.replaceAll("/sender" , player.name)
+                text = text.replaceAll("/text" , r.text)
+                content.push(text)
+                if(content.length > 100){
+                    content.shift()
+                }
+                save_data("content",to_json(content),item)
+                com.setItem(0,item)
+                chatBoardBar(player,block,creater)
+            })
+        }
+    }]
+    
+    if(get_id(player) === creater){
+        ui.btns.push({
+            text : get_text("board.clear"),
+            icon : ui_icon.rubbish,
+            func : ()=>{
+                content = []
+                save_data("content",to_json(content),item)
+                com.setItem(0,item)
+                chatBoardBar(player,block,creater)
+            }
+        })
+    }
+    ui.show(player)
+}
+
+function beforePlayerInteractWithEntity(event){
+    var player = event.player
+    var entity = event.target
+    var item = event.itemStack
+    
+    if(config.land.able){
+        var land = get_land_by_pos(player.dimension,entity.location)
+        if(is_string(land.name)){
+            if(land_member_level(player,land) === 0 && !array_has(to_array(land.other_per),"ie")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+            if((land_member_level(player,land) === 1 || land_member_level(player,land) === 2) && !array_has(to_array(land.mem_per),"ie")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+        }
+    }
+}
+
+function land_unable_tip(player){
+    system.run(()=>{
+        setActionBar(player,"§e你无权在领地内操作")
+    })
+    player.last_warn = Date.now()
+}
+
+function beforePlayerInteractWithBlock(event){
+    var player = event.player
+    var block = event.block
+    var item = event.itemStack
+    
+    if(config.land.able && !array_has(data_format.allow_blocks,block.typeId)){
+        var land = get_land_by_pos(player.dimension,block.center())
+        if(is_string(land.name)){
+            if(land_member_level(player,land) === 0 && !array_has(to_array(land.other_per),"ib")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+            if((land_member_level(player,land) === 1 || land_member_level(player,land) === 2) && !array_has(to_array(land.mem_per),"ib")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+        }
+    }
+    
+    if(block.typeId === "minecraft:lectern"){
+        var com = block.getComponent("minecraft:inventory").container
+        var b_item = com.getItem(0)
+        if(!un(item) && un(b_item)){
+            if(item.typeId === "minecraft:enchanted_book"){
+                event.cancel = true
+                system.run(()=>{
+                    if(un(com.getItem(0))){
+                        player.slots.setItem(player.selectedSlotIndex)
+                        save_data("creater",get_id(player),item)
+                        com.setItem(0,item)
+                    }
+                })
+                return
             }
         }
         
+        if(!un(b_item)){
+            if(b_item.typeId === "minecraft:enchanted_book"){
+                event.cancel = true
+                system.run(()=>{
+                chatBoardBar(player,block,get_data("creater",b_item))
+                })
+            }
+        }
     }
-    teams.push(team)
+    
+    if(!un(item)){
+        
+        if(array_has(config.cd_items,item.typeId)){
+            event.cancel = true
+            system.run(()=>{
+                cdBar(player)
+            })
+        }
+    }
+    
+    if(block.hasTag("text_sign") && config.game.sign){
+        if(Date.now() - to_number(player.last_edit_sign) < 800){
+
+        }else{
+            player.last_edit_sign = Date.now()
+            setActionBar(player,get_text("sign.tip"))
+            event.cancel = true
+        }
+    }
+
+}
+
+function beforeItemUse(event){
+    var item = event.itemStack
+    var player = event.source
+    
+    if(item.typeId === "minecraft:fire_charge"){
+        if(config.game.fb){
+            system.run(()=>{
+                if(player.getGameMode() !== "creative"){
+                    var slot = player.slots.getSlot(player.selectedSlotIndex)
+                    if(slot.amount === 1){slot.setItem()}
+                    else{
+                        slot.amount = slot.amount -1
+                    }
+                }
+                
+                var lo = player.getHeadLocation()
+                lo.x += player.getViewDirection().x
+                lo.z += player.getViewDirection().z
+                var ball = player.dimension.spawnEntity("minecraft:small_fireball",lo)
+                ball.is_throw = player
+                ball.getComponent("minecraft:projectile").shoot(player.getViewDirection(),{uncertainty : false})
+            })
+        }
+    }
+}
+
+function afterPlayerGameModeChange(event){
+    server_log(0,`GameMode changed:${event.toGameMode}`,get_player_path(event.player))
+
+    if(!config.game.lock){
+        return
+    }
+    var player = event.player
+    if(get_op_level(player) === 0){
+        if(event.toGameMode !== "survival"){
+            set_mode(player,0)
+        }
+    }
+}
+
+function say_stop_talk(player){
+    chat(format("talk.stop",[String(Math.round(get_left_time(player)/1000))]),[player])
+}
+
+function beforeChatSend(event){
+    var sender = event.sender
+    var message = event.message
+    var format = config.chat.format
+
+    if(message[0] === "+"){
+        event.cancel = true
+        system.run(()=>{
+            run_command(sender , message)
+        })
+        return
+    }
+
+    if(config.chat.disable === true){
+        return
+    }
+    for(var w of white_words){
+        if(message.includes(w)){
+            return
+        }
+    }
+
+    if(message.length > config.chat.length){
+        message = message.slice(0,config.chat.length)
+        message += "..."
+    }
+    if(config.chat.clear){
+        message = clear_colour(message)
+    }
+    format = tran_text(sender,format)
+    format = format.replaceAll("/sender" , sender.name)
+    format = format.replaceAll("/text" , message)
+
+    event.cancel = true
+
+    if(get_left_time(sender) > 0){
+        say_stop_talk(sender)
+        return
+    }
+    var t = get_chat_players()
+    switch(sender.talk.mode){
+        case 0:
+            break
+        case 1:
+            if(sender.talk.goal.isValid()){
+                t = [sender.talk.goal,sender]
+                format = "[§e私聊§r]" + format
+            }else{
+                sender.talk.mode = 0
+                t = []
+                chat(get_text("talk.public"),[sender])
+            }
+            break
+        case 2:
+            var g = get_group(sender.talk.goal)
+            if(is_group(g)){
+                t = []
+                for(var p of g.member){
+                    t.push(get_player_by_id(p))
+                }
+                t.push(get_player_by_id(g.creater))
+                array_clear(t,null)
+
+                if(is_array(group_mess[g.id])){
+                    group_mess[g.id].push(format.slice(0,60))
+                }else{
+                    group_mess[g.id] = [format.slice(0,60)]
+                }
+
+                format = `[§e${g.name}§r]` + format
+
+            }else{
+                t = []
+                chat(get_text("talk.public.group"),[sender])
+            }
+            break
+    }
+    
+    chat(format,t,false)
+    if(array_has(config.log.allow,"chat")){
+        server_log(0,format,"Chat")
+    }
+    if(array_has(config.log.allow,"chat_")){
+        server_log(1,format)
+    }
+    
+}
+
+function afterEntitySpawn(event){
+    var entity = event.entity
+    if(!is_player(entity)){
+        if(array_has(config.ban_entity,entity.typeId)){
+            entity.remove()
+        }
+    }
+    if(entity.typeId === "minecraft:item"){
+        item_count += 1
+        
+        var com = entity.getComponent("minecraft:item")
+        if(!un(com)){
+            if(array_has(config.ban_item,com.itemStack.typeId)){
+                entity.remove()
+            }
+        }
+    }
+    
+}
+
+function beforeBlockPlace(event){
+    var player = event.player
+    var block = event.block
+    
+    if(config.land.able){
+        var land = get_land_by_pos(player.dimension,block.center())
+        if(is_string(land.name)){
+            if(land_member_level(player,land) === 0 && !array_has(to_array(land.other_per),"pb")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+            if((land_member_level(player,land) === 1 || land_member_level(player,land) === 2) && !array_has(to_array(land.mem_per),"pb")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+        }
+    }
+}
+
+function afterBlockPlace(event){
+    var player = event.player
+    var block = event.block
+    var id = no_minecraft(block.typeId)
+
+    score_event(player,"pb")
+    player.block_places = to_number(player.block_places) + 1
+    if(array_has(config.log.allow,"pb")){
+        log_info.pb[player.name] = to_object(log_info.pb[player.name])
+        log_info.pb[player.name][id] = to_array(log_info.pb[player.name][id])
+
+        log_info.pb[player.name][id].push(get_block_pos_di(block))
+    }
+
+    if(block.hasTag("text_sign") && array_has(config.log.allow,"sign") && config.log.able && sign[get_block_pos_di] == undefined){
+        var com = block.getComponent("minecraft:sign")
+        sign[get_block_pos_di(block)] = {
+            block : block,
+            id : block.typeId,
+            player : player.name,
+            before : [com.getText("Front"),com.getText("Back")],
+            now : [com.getText("Front"),com.getText("Back")]
+        }
+        server_log(0,"Edit Sign"+get_block_pos_di(block),get_player_path(player))
+    }
+}
+
+function beforeBlockBreak(event){
+    var player = event.player
+    var block = event.block
+    
+    if(config.land.able){
+        var land = get_land_by_pos(player.dimension,block.center())
+        if(is_string(land.name)){
+            if(land_member_level(player,land) === 0 && !array_has(to_array(land.other_per),"bb")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+            if((land_member_level(player,land) === 1 || land_member_level(player,land) === 2) && !array_has(to_array(land.mem_per),"bb")){
+                event.cancel = true
+                land_unable_tip(player)
+            }
+        }
+    }
+}
+function afterBlockBreak(event){
+    var player = event.player
+    var block = event.block
+    var broken = event.brokenBlockPermutation
+    var id = no_minecraft(broken.type.id)
+    score_event(player,"bb")
+
+    if(array_has(config.log.allow,"bb")){
+        log_info.bb[player.name] = to_object(log_info.bb[player.name])
+        log_info.bb[player.name][id] = to_array(log_info.bb[player.name][id])
+
+        log_info.bb[player.name][id].push(get_block_pos_di(block))
+    }
+
+}
+
+function is_same_day(d1,d2){
+    return (d1.setHours(0, 0, 0, 0) == d2.setHours(0, 0, 0, 0))
+}
+
+function playerSpawn(event){
+    var player = event.player
+    var is_login = false
+    
+    if(event.initialSpawn === true){
+    player.runCommand("scoreboard players set @s usf_data 1")
+    player.info = parse_json(get_data("info",player))
+    if(un(player.info.last_time)){
+        is_login = true
+    }else{
+        var d1 = new Date(player.info.last_time)
+        var d2 = new Date()
+        if(is_same_day(d1,d2) === false){
+            player.info.score = {}
+            is_login = true
+            
+        }
+    }
+
+    if(is_object(player.info.follow)){
+        reset_player_follow(player)
+    }
+    player.info.last_time = Date.now()
+    player.info.join_times = to_number(player.info.join_times,0) +1
+    
+
+    object_override(player.info,data_format.info)
+    save_player_info(player)
+    
+    reset_player_data(player)
+
+    if(is_login){
+        score_event(player,"login")
+    }
+    
+    array_clear(ids,get_id(player))
+    ids.push(get_id(player))
+    try{
+        if(ids.length > 200){
+            delete id_names[ids.shift()]
+        }
+    }catch(err){}
+    id_names[get_id(player)] = player.name
+    save_data("id_names",to_json(id_names))
+    save_data("ids",to_json(ids))
+
+    if(get_owners().length === 0){
+        chat(get_text("tip.init"),[player],false)
+    }
+    show_board(player)
+    //show_tips(player)
+
+    if(config.game.r_in > 0){
+        player.addEffect("resistance",config.game.r_in*20,{
+            amplifier : 4,
+            showParticles : false
+        })
+    }
+    if(array_has(config.log.allow,"jl")){
+        server_log(0,`Join At ${get_block_pos_di(player)}`,get_player_path(player))
+    }
+    
+    }else{
+        if(config.game.r_rs > 0){
+            player.addEffect("resistance",config.game.r_rs*20,{
+                amplifier : 4,
+                showParticles : false
+            })
+        }
+    }
+
+    reset_lock_item(player)
+}
+
+function afterPistonActivate(event){
+    var block = event.block
+    var piston = event.piston
+    
+    return
+}
+
+function afteritemUse(event){
+    var item = event.itemStack
+    var player = event.source
+    
+    if(typeof(item) === "object"){
+        if(item.typeId === "usf:op"){
+            if(get_op_level(player) >= 1){
+                opBar(player)
+            }
+        }
+    }
+}
+
+function beforeEntityRemove(event){
+    var entity = event.removedEntity
+    if(entity.typeId === "minecraft:item"){
+        item_count -= 1
+    }
+
+    if(entity.typeId === "minecraft:small_fireball"){
+        if(is_object(entity.is_throw)){
+            var di = entity.dimension
+            var lo = entity.location
+            var source = entity.is_throw
+            system.run(()=>{
+                di.createExplosion(lo,1,{
+                    breaksBlocks : true,
+                    causesFire : true,
+                    source : source
+                })
+            })
+        }
+    }
+}
+function afterEntityLoad(event){
+    var entity = event.entity
+}
+
+function worldInitializeEvent(event){
+    log("——USF加载中——",[],"info",2)
+    try{
+    var time = Date.now()
+    
+    
+    reload_all()
+    
+    for(var cf of world.getAllPlayers()){
+        reset_player_data(cf)
+    }
+
+    
+        
+    reloaded = true
+    time = Date.now() - time
+    log(`——USF加载成功——时间:[0]ms`,[time],"info",2)
+    }catch(err){
+        log(`——USF加载失败！——\n§c[Error:§r[0]§c]`,[err],"error",2)
+    }finally{
+        log(`——USF加载结束——`,[],"info",2)
+    }
+}
+
+function afterWeatherChanged(event){
+    var weaText = "Wearther."
+    if(event.raining){
+        weaText += "Rain"
+        if(event.lightning){
+            weaText += ".Thunder"
+        }
+    }else{
+        if(event.lightning){
+            weaText += "Thunder"
+        }else{
+            weaText += "Clear"
+        }
+    }
+    tran_info.weather = weaText
+}
+
+function afterPlayerDimensionChange(event){
+    var player = event.player
+    var to = event.toDimension
+    var from = event.fromDimension
+
+    if(array_has(config.log.allow,"di")){
+        server_log(0,`Dimension Change:${from.name} to ${to.name}`,get_player_path(player))
+    }
+    if(config.game.r_di > 0){
+        player.addEffect("resistance",config.game.r_di*20,{
+            amplifier : 4,
+            showParticles : false
+        })
+    }
+    player.landing.points = []
+}
+
+function afterEntityHurt(event){
+    var hurt = event.hurtEntity
+    var hurter = event.damageSource.damagingEntity
+    
+    if(typeof(hurter) === "object"){
+    if (hurter.typeId == "minecraft:player"){
+        if(is_player(hurter)){
+            score_event(hurter,"hit")
+        }
+
+        if(hurt.hasComponent("minecraft:health")){
+        var max = event.hurtEntity.getComponent("minecraft:health").effectiveMax
+        var now = event.hurtEntity.getComponent("minecraft:health").currentValue
+        if(config.hurt.able && now >= 0){
+            var text = ""
+            var level = now / max *100
+            level = (level <= 100)? level : 100
+            switch(config.hurt.type){
+                case 0:
+                    text += "§a"
+                    for(var cf =0 ; cf < Math.ceil(level/5) ; cf++){
+                        text += "||"
+                    } 
+                    text += "§f"
+                    for(var cf = 0;cf < 20 - Math.ceil(level/5) ; cf++){
+                        text += "||"
+                    }
+                    text += "  "+ String(Math.round(now)) + "/" + String(Math.round(max))
+                    break
+                case 1:
+                    if(now <= 20){
+                        for(var cf=0;cf<Math.ceil(now/2);cf++){
+                            text += ""
+                        }
+                    }
+                    else{
+                        text = " × "+String(Math.ceil(now/2))
+                    }
+                    break
+            }
+            try{
+                setActionBar(hurter, text )
+            }catch(err){}
+        }
+        /* if (){
+        
+        
+        for(var cf = 0;cf <= 95;cf = cf+5){
+            if(level > cf){
+                text += "§a"
+            }else{
+                text += "§f"
+            }
+            text += "|"
+        }
+        text += "\n§a"
+        text += `${Math.round(now)} / ${Math.round(max)}§r)`
+        if(1 === 1){
+            try{
+                setActionBar(event.damageSource.damagingEntity, text )
+            }catch(err){}
+        }} */
+        }
+    }
+    }
+}
+
+function get_player_hand_item(player){
+    return player.slots.getItem(player.selectedSlotIndex)
+}
+
+function land_member_level(player,land){
+    if(player.info.manager === true && get_op_level(player) > 0){
+        return 4
+    }
+    if(land.creater === get_id(player)){
+        return 3
+    }
+    if(array_has(land.member,player.name)){
+        return 2
+    }
+    for(var g of get_player_groups(player)){
+        if(array_has(land.group,String(g.id))){
+            return 1
+        }
+    }
+    return 0
+}
+
+function report_warn(type , op){
+    if(config.hacker.kick){
+        kick(op.player,"游戏中作弊")
+    }
+    
+    var reports = get_reports()
+    var text = "未知日志"
+    switch(type){
+        case "chest":
+            text = `反作弊:${op.player.name}疑似使用"自动开箱"`
+            break
+        case "text":
+            text = op.text
+            break
+    }
+    
+    reports.push(text)
+    save_data("reports",to_json(reports))
+}
+
+function get_reports(){
+    return to_array(parse_json(get_data("reports")))
+}
+
+function afterPlayerInteractWithBlock(event){
+    var item = event.itemStack
+    var block = event.block
+    var player = event.player
+    if(block.hasTag("text_sign")){
+        if(array_has(config.log.allow,"sign") && config.log.able && sign[get_block_pos_di(block)] == undefined){
+            var com = block.getComponent("minecraft:sign")
+            sign[get_block_pos_di(block)] = {
+                block : block,
+                id: block.typeId,
+                player : player.name,
+                before : [com.getText("Front"),com.getText("Back")],
+                now : [com.getText("Front"),com.getText("Back")]
+            }
+            server_log(0,"Edit Sign"+get_block_pos_di(block),get_player_path(player))
+        }
+    }
+
+
+    var com = block.getComponent("minecraft:inventory")
+    if(!un(com)){
+        com = com.container
+        var items = {}
+        for(var i = 0 ; i< com.size ; i++){
+            var item = com.getItem(i)
+            if(!un(item)){
+                items[no_minecraft(item.typeId)] = to_number(items[no_minecraft(item.typeId)]) + item.amount
+            }
+        }
+        
+        if(array_has(config.hacker.allow,"chest")){
+            var count = com.emptySlotsCount
+            var items_o = []
+            for(var i = 0 ; i< com.size ; i++){
+                items_o.push(com.getItem(i))
+            }
+            system.runTimeout(()=>{
+                if(com.emptySlotsCount - count >= 5){
+                    report_warn("chest",{
+                        player : player,
+                        block : block
+                    })
+                    if(config.hacker.back){
+                        for(var i=0;i<items_o.length;i++){
+                            com.setItem(i,items_o[i])
+                        }
+
+                        var ids = Object.keys(items)
+                        var p_com = player.getComponent("minecraft:inventory").container
+                        for(var i = 0 ; i< p_com.size ; i++){
+                            var item = p_com.getItem(i)
+                            if(!un(item)){
+                                if(array_has(ids,no_minecraft(item.typeId))){
+                                    p_com.setItem(i)
+                                }
+                            }
+                        }
+                    }
+                }
+            },8)
+
+        }
+        
+        if(config.log.able && log_config.able && array_has(config.log.allow,"chest")){
+            chest[get_block_pos_di(block)] = to_object(chest[get_block_pos_di(block)],{
+            "block" : block,
+            "players" : [],
+            "items" : items,
+            "typeId" : block.typeId
+            })
+            if(array_has(chest[get_block_pos_di(block)].players,player.name) === false){
+                chest[get_block_pos_di(block)].players.push(player.name)
+            }
+
+            server_log(0,`Open ${no_minecraft(block.typeId)}${get_block_pos_di(block)}`,get_player_path(player))
+        }     
+    }
+
+    if(is_player(player)){
+        if(!un(item)){
+            
+        }else{
+            if(player.landing.mode ===1){
+                var can = false
+                if(player.landing.points.length === 0){
+                    can = true
+                }else{
+                    if(get_block_pos(block) !== get_block_pos(player.landing.points[player.landing.points.length -1])){
+                        can = true
+                    }
+                }
+                if(can){
+                    show_title(player,get_text("point.get"))
+                    player.landing.points.push({location : block.location,x:block.x,y:block.y,z:block.z,typeId:block.typeId})
+                    if(player.landing.points.length > 2){
+                        player.landing.points.shift()
+                    }
+                }
+            }
+        }
+    }
+}
+
+function beforePlayerLeave(event){
+    var player = event.player
+    delete id_player[get_id(player)]
+    var name = player.name
+
+    system.run(()=>{
+        if(array_has(config.log.allow,"jl")){
+            server_log(0,"Leave",get_player_path({name:name}))
+        }
+    })
+}
+
+function scriptEventReceive(event){
+    const id = event.id.slice("usf:".length)
+    var message = event.message + " "
+    var messages = []
+    var type = event.sourceType
+    //Server NPCDialogue Entity Block
+    var block = event.sourceBlock
+    var entity = event.sourceEntity
+    var entity_player = false
+    if(type === "Entity"){entity_player = is_player(entity)}
+    
+    var is_in = false
+    //如果为true，则正在引号内
+    var last_char = 0
+    for(var i=0 ; i<message.length; i++){
+        var c = message.charAt(i)
+        if(c === "\""){
+            is_in = is_in ? false : true
+        }
+        if(c === " " && !is_in){
+            var part = message.slice(last_char,i).replaceAll("\"","")
+            messages.push(part)
+            last_char = i+1
+        }
+    }
+    
+    switch(id){
+        case "reset":
+            log("重置命令已发出，请于30秒内运行/reload命令即可重置owner")
+            save_data("reset",String(Date.now()))
+            break
+        case "get_owner":
+            if(type === "Entity" && entity_player){
+                if(!has_owner){
+                    save_data("owners",to_json([get_id(entity)]))
+                    get_owners()
+                }else{
+                    log("已存在owner，请在Server使用命令，或从其他owner处获取。")
+                }
+                
+            }
+            if(type === "Server"){
+                var owners = get_owners()
+                for(var p of world.getAllPlayers()){
+                    if(!array_has(owners,get_id(p))){
+                        owners.push(get_id(p))
+                    }
+                }
+                save_data("owners",to_json(owners))
+                log("已给予全部在线玩家Owners",[],"warn",1)
+            }
+            break
+        
+        }
 }
 
 
-function get_shares(){
-    var players = world.getAllPlayers()
-    var texts = []
-    for(var cf=0; cf<players.length;cf++){
-        if(get_tag(players[cf],"sharePos,") !== ""){
-            //world.say("hi")
-            texts.push(players[cf].name + "," + get_tag(players[cf],"sharePos,"))
-        }
+//界面
+
+function groupLookBar(player , g , op = false){
+    var ui = new btnBar()
+    ui.title = format("group.init",[g.name])
+
+    var text = [
+        get_text("group.name") + g.name,
+        get_text("group.id") + g.id,
+        "————————————",
+        get_text("group.announcement"),
+        g.board,
+        "————————————",
+        get_text("group.owner") + get_name_by_id(g.creater),
+        get_text("group.member")
+    ]
+    for(var p of g.member){
+        text.push(get_name_by_id(p))
     }
-    //world.say(String(texts))
-    return texts
+
+    if(op){
+        text.push("§e管理员编辑模式")
+    }
+
+    ui.body = text
+
+    ui.btns.push({
+        text : get_text("group.his"),
+        icon : ui_icon.key_board,
+        func :()=>{
+            var ui = new btnBar()
+            ui.body = g.message
+            ui.title = `${g.name} - ${get_text("group.his")}`
+            ui.btns = [{
+                text : get_text("back"),
+                icon : ui_icon.back,
+                func : ()=>{
+                    groupLookBar(player,get_group(g.id))
+                }
+            }]
+            ui.show(player)
+        }
+    })
+    
+    if(g.creater === get_id(player) || op === true){
+        ui.btns.push({
+            text: "编辑信息",
+            icon : ui_icon.edit,
+            func :()=>{
+                editGroupBar(player,g)
+            }
+        })
+        ui.btns.push({
+            text: "添加成员",
+            icon : ui_icon.add,
+            func :()=>{
+                var ps = []
+                for(var p of world.getAllPlayers()){
+                    if(!is_group_has(g,p)){
+                        ps.push(p)
+                    }
+                }
+                choosePlayer(player,ps,(players)=>{
+                    if(players.length === 0){
+                        tip(player,"无玩家可选择或未选择玩家！",()=>{
+                            groupLookBar(player , g)
+                        })
+                    }else{
+                        for(var p of players){
+                            add_invite(p , g.id)
+                        }
+                        tip(player,`已向${players.length}位玩家发送邀请！`,()=>{
+                            groupLookBar(player , g)
+                        })
+                    }
+                })
+            }
+        })
+        if(g.member.length > 0){
+            ui.btns.push({
+                text : "删除成员",
+                icon : ui_icon.stop,
+                func : ()=>{
+                    var ui = new infoBar()
+                    ui.title = "删除成员"
+                    for(var id of g.member){
+                        ui.toggle(id,get_name_by_id(id),false)
+                    }
+                    ui.show(player,(r)=>{
+                        for(var k of Object.keys(r)){
+                            if(r[k] === true){
+                                array_clear(g.member,k)
+                            }
+                        }
+                        save_group(g)
+                        groupLookBar(player , get_group(g.id))
+                    })
+                }
+            })
+        }
+        if(g.in.length > 0){
+            ui.btns.push({
+                text : "加群申请",
+                icon : ui_icon.compass,
+                func : ()=>{
+                    var ui = new infoBar()
+                    ui.title = "申请列表"
+                    for(var i of g.in){
+                        ui.toggle(i,get_name_by_id(i) + "[拒绝 | 同意]",false)
+                    }
+                    ui.show(player,(r)=>{
+                        for(var k of Object.keys(r)){
+                            if(r[k] === true){
+                                g.member.push(k)
+                            }
+                        }
+                        g.in = []
+                        save_group(g)
+                        groupLookBar(player , get_group(g.id))
+                    })
+                }
+            })
+        }
+        ui.btns.push({
+            text : "解散群组",
+            icon : ui_icon.delete,
+            func : ()=>{
+                confirm(player,"确认解散群组？你将和所有群员失去联系！",(r)=>{
+                    if(r){
+                        save_data("group"+g.id,"")
+                        array_clear(groups,g.id)
+                        save_groups()
+                        groupsBar(player)
+                    }else{
+                        groupLookBar(player , get_group(g.id))
+                    }
+                })
+            }
+        })
+    }else{
+        ui.btns.push({
+            text : "退出群组",
+            icon : ui_icon.delete,
+            func : ()=>{
+                confirm(player,"确认退出群组？你将和所有群员失去联系！",(r)=>{
+                    if(r){
+                        array_clear(g.member,get_id(player))
+                        save_group(g)
+                        groupsBar(player)
+                    }else{
+                        groupLookBar(player , get_group(g.id))
+                    }
+                })
+            }
+        })
+    }
+    ui.show(player)
 }
 
-function block_test(block,is_name = false,type = 0){
-    var name = ""
-    if(is_name === true){
-        name = block
-    }
-    else{
-        name=block.typeId
-    }
-    if(type === 0){
-        if(danger_break_blocks.indexOf(name) !== -1){
-            return "danger"
+function confirm(player , text , back = function(r){}){
+    var ui = new btnBar()
+    ui.title = "确认"
+    ui.body = text
+    ui.btns = [{
+        text :"确认",
+        icon : ui_icon.ok,
+        func : ()=>{
+            back(true)
         }
-        if(kick_break_blocks.indexOf(name) !== -1){
-            return "kick"
+    },{
+        text :"取消",
+        icon : ui_icon.delete,
+        func : ()=>{
+            back(false)
         }
+    }]
+    ui.cancel = ()=>{
+        back(false)
     }
-    else{
-        if(danger_place_blocks.indexOf(name) !== -1){
-            return "danger"
-        }
-        if(kick_place_blocks.indexOf(name) !== -1){
-            return "kick"
-        }
-    }
-    return "none"
+    ui.show(player)
 }
 
-function entity_test(entity){
-    if(entities_test.indexOf(entity.typeId) !== -1){
+function add_invite(player , id){
+    var invites = to_array(parse_json(get_data("invites",player)),[])
+    if(!array_has(invites,id)){
+        invites.push(id)
+        chat("[群组]你收到一条群组邀请！请前往查看！",[player])
+    }
+    save_data("invites",to_json(invites),player)
+}
+
+//该函数返回的是选择的things的index
+function chooseBar(player , things = [] , back = function(options){}){
+    if(things.length <= 0){
+        back([])
+        return 
+    }
+    var ui = new infoBar()
+    ui.title = "选择器"
+    for(var t=0;t<things.length;t++){
+        ui.toggle("things",things[t],false)
+    }
+
+
+    ui.show(player,(r)=>{
+        if(!is_array(r.things)){
+            r.things = [r.things]
+        }
+        var result = []
+        for(var i=0;i<r.things.length;i++){
+            if(r.things[i]){
+                result.push(i)
+            }
+        }
+        back(result)
+    })
+}
+
+function choosePlayer(player , ps , back = function(pps){}){
+    if(ps.length <= 0){
+        back([])
+        return 
+    }
+    var ui = new infoBar()
+    ui.title = "玩家选择器"
+    for(var p of ps){
+        ui.toggle("players",p.name,false)
+    }
+
+
+    ui.show(player,(r)=>{
+        if(!is_array(r.players)){
+            r.players = [r.players]
+        }
+        var pps = []
+        for(var i=0;i<r.players.length;i++){
+            if(r.players[i]){
+                pps.push(ps[i])
+            }
+        }
+        back(pps)
+    })
+}
+
+function editGroupBar(player,g){
+    var new_g = false
+    if(!is_group(g)){
+        new_g = true
+        g = {
+            creater : "",
+            member : [],
+            message : [],
+            name : "",
+            board : "",
+            pos : [],
+            in : [],
+            id : get_random_group_id()
+        }
+    }
+    
+
+    var ui =new infoBar()
+    ui.title = "编辑群组"
+    ui.input("name","群名","输入群名",g.name)
+    ui.input("board","公告","输入公告",g.board)
+
+    ui.show(player,(r)=>{
+        g.name = r.name
+        g.board = r.board
+        g.creater = get_id(player)
+        if(new_g){
+            player_add_group(player , g.id)
+        }
+        save_group(g)
+        groupLookBar(player , get_group(g.id))
+    })
+}
+
+function get_land_by_pos(di,pos){
+    var dis = Math.sqrt(Math.pow(Math.abs(pos.x),2) + Math.pow(Math.abs(pos.z),2))
+    var ix = two_find_min(lands.min,dis)
+    if(ix === -1){
+        return {}
+    }
+    for(var i = ix;i >= 0 ;i--){
+        if(lands.max[i] < dis){
+            return {}
+        }
+        var land = get_land(lands.ids[i])
+        if(is_string(land.name)){
+            if(di.id === land.di){
+                if(is_between(pos.y,land.from.y,land.to.y) && is_between(pos.x,land.from.x,land.to.x) && is_between(pos.z,land.from.z,land.to.z)){
+                    return land
+                }
+            }
+        }
+    }
+    return {}
+}
+
+function is_group_has(g , player){
+    if(g.creater === get_id(player) || array_has(g.member,get_id(player))){
+        return true
+    }return false
+}
+
+function addGroupBar(player){
+    var ui =new infoBar()
+    ui.busy = ()=>{
+        groupsBar(player)
+    }
+    ui.title = "加入群组"
+    ui.input("id","加入的群ID","输入群ID","")
+    ui.show(player,(r)=>{
+        var g = get_group(r.id)
+        if(is_group(g)){
+            if(is_group_has(g,player)){
+                tip(player,"你已经在该群组内！",()=>{
+                    groupsBar(player)
+                })
+            }else{
+                g.in.push(get_id(player))
+                save_group(g)
+
+                var my_invites = to_array(parse_json(get_data("my_in",player)),[])
+                if(!array_has(my_invites,g.id)){
+                    my_invites.push(g.id)
+                }
+                save_data("my_in",to_json(my_invites),player)
+
+                tip(player,"已发送请求!",()=>{
+                    groupsBar(player)
+                })
+            }   
+        }else{
+            tip(player,"该群组不存在！",()=>{
+                groupsBar(player)
+            })
+        }
+    })
+}
+
+function myInvitationBar(player){
+    var invites = to_array(parse_json(get_data("invites",player)),[])
+    var used = 0
+    
+    var ui = new infoBar()
+    ui.title = "邀请请求"
+    for(var i of invites){
+        var g = get_group(i)
+        if(is_group(g) && !is_group_has(g,player)){
+            ui.toggle(i,`${get_group(i).name}(群主:${get_name_by_id(g.creater)})\n[拒绝 | 同意]`)
+            used += 1
+        }
+    }    
+    if(used === 0){
+        tip(player,"当前无请求！",()=>{
+            groupsBar(player)
+        })
+        return
+    }
+    ui.show(player,(r)=>{
+        for(var id of Object.keys(r)){
+            if(r[id]){
+                var g = get_group(id)
+                group_add_member(g,player)
+            }
+        }
+        save_data("invites","",player)
+        groupsBar(player)
+    })
+}
+
+function group_add_member(g,player){
+    if(!is_group_has(g,player)){
+        g.member.push(get_id(player))
+        player_add_group(player,g.id)
+        save_group(g)
+    }
+}
+
+function groupsBar(player){
+    var my_invites = to_array(parse_json(get_data("my_in",player)),[])
+    var group_ids = to_array(parse_json(get_data("groups",player)),[])
+
+    for(var i of my_invites){
+        var g = get_group(i)
+        if(is_group(g) && !array_has(group_ids,i)){
+            if(is_group_has(g,player)){
+                player_add_group(player,i)
+                array_clear(my_invites,i)
+            }
+        }
+    }
+    save_data("my_in",to_json(invites))
+
+    var invites = to_array(parse_json(get_data("invites",player)),[])
+    var groups = get_player_groups(player)
+    
+    var creater_groups = []
+
+    var ui = new btnBar()
+    ui.title = "我的群组"
+    ui.body = "管理你的群组"
+    for(var i=0;i<groups.length;i++){
+        var g = groups[i]
+        ui.btns.push({
+            text : `${g.name}\n群主:${get_name_by_id(g.creater)}`,
+            op : {
+                g : groups[i]
+            },
+            func : (op)=>{
+                groupLookBar(player ,op.g)
+            }
+        })
+        if(g.creater === get_id(player)){
+            creater_groups.push(g)
+        }
+    }
+
+    if(creater_groups.length < config.groups.max || get_op_level(player) > 0){
+        ui.btns.push({
+            text : "新建群组",
+            icon : ui_icon.add,
+            func : ()=>{
+                editGroupBar(player,{})
+            }
+        })
+    }
+
+    ui.btns.push({
+        text : "加入群组",
+        icon : ui_icon.more,
+        func : ()=>{
+            addGroupBar(player)
+        }
+    })
+    ui.btns.push({
+        text : `群组邀请(${invites.length})`,
+        icon : ui_icon.share,
+        func : ()=>{
+            myInvitationBar(player)
+        }
+    })
+
+    ui.show(player)
+}
+
+function setChatBar(player){
+    var texts = ["公共聊天"]
+    var ops = [null]
+    for(var p of world.getAllPlayers()){
+        ops.push(p)
+        texts.push(`私聊-${p.name}`)
+    }
+    for(var g of get_player_groups(player)){
+        ops.push(String(g.id))
+        texts.push(`群聊-${g.name}`)
+    }
+    var ui =new infoBar()
+    ui.title = "聊天设置"
+    ui.options("goal","聊天对象",texts,0)
+
+    ui.show(player,(r)=>{
+        if(r.goal === 0){
+            player.talk.mode = 0
+        }else{
+            if(is_string(ops[r.goal])){
+                player.talk.mode = 2
+                player.talk.goal = ops[r.goal]
+            }else{
+                player.talk.mode = 1
+                player.talk.goal = ops[r.goal]
+            }
+        }
+    })
+}
+
+function is_public_editable(player){
+    if(get_op_level(player) > 0){
         return true
     }
-    else{
+    return false
+}
+
+function is_pos(pos){
+    if(un(pos.name)){
         return false
     }
+    return true
 }
 
-function get_time(){
-    var zone = 8
-    var date = new Date();
-    var Days = date.getDate()
-    var Hours = date.getHours()
-    var offest = zone-(date.getTimezoneOffset()/-60)
-    Hours += offest
-    if(Hours >= 24){
-        Hours = Hours - 24
-        Days ++
+function to_pos(player,pos){
+    if(Date.now() - player.last_tp < config.tp.down * 1000){
+        tip(player,"传送功能冷却中...请稍后尝试！","")
+        return
     }
-    return "[" + String(date.getMonth()+1) + "." + String(Days) + " " + String(Hours) + ":" + String(date.getMinutes()) + "]"
-
+    tp_entity(player,get_di(pos.di),pos.x,pos.y,pos.z,true,false,true)
+    player.last_tp = Date.now()
 }
 
-
-function is_op(player){
-    return player.hasTag("op,"+player.name)
+function get_pos_name(pos){
+    return `[${get_di(pos.di).name}]${pos.name}`
 }
 
-function clear_tag(player){
-    var tags = player.getTags()
-    for(var cf=0; cf<tags.length; cf++){
-    player.removeTag(tags[cf])
+function editPosBar(player,pos,save = function(){},back = function(){}){
+    var ui = new infoBar()
+    var poss = [null,null]
+    var texts = ["保持位置","当前位置"]
+    ui.cancel = ()=>{
+        back()
     }
+   
+    if(Object.keys(pos).length === 0){
+        object_override(pos,{
+            "owner" : get_id(player),
+            "di" : player.dimension.id,
+            "x" : player.location.x,
+            "y" : player.location.y,
+            "z" : player.location.z,
+            "name" : "",
+            "icon" : null,
+            "home" : false,
+        })
+        texts = ["当前位置","当前位置"]
+        ui.cancel = ()=>{
+            pos.name = undefined
+            save()
+            back()
+        }
+    }
+
+    for(var p of get_player_personal_pos()){
+        poss.push(p)
+        texts.push(get_pos_name(p))
+    }
+
+    
+    ui.title = "编辑传送点"
+    ui.input("name","传送点名称","输入名称",pos.name)
+    add_pictures_choice(ui,"选择传送点图标",pos.icon)
+    ui.options("lo","位置",texts,0)
+    ui.toggle("home","设为Home(仅个人传送点有效)",pos.home)
+
+    ui.show(player,(r)=>{
+        pos.name = r.name
+        pos.icon = r.icon
+        pos.home = r.home
+        switch(r.lo){
+            case 0:
+
+                break
+            case 1:
+                pos.x = player.location.x
+                pos.y = player.location.y
+                pos.z = player.location.z
+                pos.di = player.dimension.id
+                break
+            default:
+                pos.x = poss[r.lo].x
+                pos.y = poss[r.lo].y
+                pos.z = poss[r.lo].z
+                break
+        }
+
+        save()
+        var ui2 = new btnBar()
+        viewPosBar(player , pos , true , ui2 , save,back)
+    })
 }
 
-function get_tag(player,tag){
-    var tags = player.getTags()
-    var goal = ""
-    for(var cf=0; cf<tags.length; cf++){
-    if(tags[cf].indexOf(tag) !== -1){
-    goal = tags[cf]
+function pos_to_text(pos){
+    return `(${Math.round(pos.x)},${Math.round(pos.y)},${Math.round(pos.z)})`
+}
+
+function save_player_store_record(player){
+    save_data("store_record",to_object(player.store_record),player)
+}
+
+function viewPosBar(player , pos , editable , ui = new btnBar() , save = function(){} , back = function(){}){
+    
+    ui.title = `传送点 - ${pos.name}`
+    ui.cancel = ()=>{
+        back()
     }
+    ui.body =[
+        "传送点:" + pos.name,
+        `创建者:${get_name_by_id(pos.owner)}`,
+        `维度:${get_di(pos.di).name}`,
+        `坐标:${pos_to_text(pos)}`
+    ]
+
+    ui.btns = [{
+        text : "传送",
+        icon : ui_icon.go,
+        func : ()=>{
+            to_pos(player,pos)
+        }
+    }]
+    
+    if(config.tp.share){
+        ui.btns.push({
+            text : "分享",
+            icon : ui_icon.share,
+            func : ()=>{
+                sharePosBar(player,pos)
+            }
+        })
+    }
+    if(editable){
+        ui.btns = ui.btns.concat([{
+            text : "编辑",
+            icon : ui_icon.edit,
+            func : ()=>{
+                editPosBar(player,pos,save,back)
+            }
+        },
+        {
+            text : "删除",
+            icon : ui_icon.delete,
+            func : ()=>{
+                delete pos.name
+                save()
+                back()
+            }
+        }])
+    }
+    ui.show(player)
+}
+
+function save_player_pos(player){
+    for(var pos of player.pos){
+        if(un(pos.name)){
+            player.pos.splice(player.pos.indexOf(pos),1)
+        }
+    }
+    save_data("pos",to_json(player.pos),player)
+}
+function get_player_pos(player){
+    return to_array(parse_json(get_data("pos",player)))
+}
+
+function get_score(ob,player){
+    var s = 0
+    try{
+        s = ob.getScore(player)
+    }catch(err){}
+    return s
+}
+
+function tranBar(player){
+    var board = config.tran.board
+    board = board.split(";")
+
+    var obs = []
+    for(var id of board){
+        var ob = world.scoreboard.getObjective(id)
+        if(!un(ob)){
+            obs.push(ob)
+        }
+    }
+
+    if(obs.length === 0){
+        chat("§e[转账机]当前无可转账项目",[player])
+        return
+    }
+
+    var obs_name = []
+    for(var i=0;i<obs.length;i++){
+        obs_name.push(obs[i].displayName + " - 剩余:" + String(get_score(obs[i],player)))
+    }
+
+    var players = world.getAllPlayers()
+    var ps_name = []
+    for(var i=0;i<players.length;i++){
+        ps_name.push(players[i].name)
+    }
+
+    var ui = new infoBar()
+    ui.title = "转账机"
+    ui.options("id","转账项目",obs_name,0)
+    ui.input("money",`输入整数数额(手续费:${config.tran.free}％)`,"款数","")
+    ui.options("p","玩家",ps_name,0)
+    ui.show(player,(r)=>{
+        var count = to_number(parseInt(r.money))
+        if(count > 0){
+            var text = [
+                `余额:${get_score(obs[r.id],player)}`,
+                `你将转账给:${players[r.p].name}`,
+                `数目:${String(count)}`,
+                `实付:${Math.ceil(count * (1+config.tran.free/100))}`,
+                "确认转账？"
+            ]
+            confirm(player,text,(r2)=>{
+                if(r2 === true){
+                    if(get_score(obs[r.id],player) - count * (1+config.tran.free/100) >= 0){
+                        players[r.p].runCommand(`scoreboard players add @s ${obs[r.id].id} ${String(count)}`)
+                        player.runCommand(`scoreboard players remove @s ${obs[r.id].id} ${String(Math.ceil(count * (1+config.tran.free/100)))}`)
+                        chat("§e[转账机]转账成功！",[player])
+                    }
+                    else{
+                        chat("§e[转账机]余额不足！",[player])
+                    }
+                }else{
+                    tranBar(player)
+                }
+            })
+        }else{
+            chat("§e[转账机]无法识别您输入的款数！",[player])
+        }
+    })
+}
+
+function groupPosBar(player){
+    var ui = new btnBar()
+    ui.title = "群组公共点"
+    ui.body = "管理所有群组的传送点"
+    ui.cancel = ()=>{
+        posBar(player)
+    }
+
+    var groups = get_player_groups(player)
+    if(groups.length === 0){
+        tip(player,"您未加入任何群组！",()=>{
+            posBar(player)
+        })
+        return
+    }
+    for(var group of groups){
+        for(var pos of group.pos){
+            ui.btns.push({
+                text : `[${group.name}]\n[${get_di(pos.di).name}]${pos.name}`,
+                icon : pictures[pos.icon],
+                op : {
+                    "pos" : pos,
+                    "group" : group
+                },
+                func : (op)=>{
+                    var ui2 = new btnBar()
+                    ui2.cancel = ()=>{
+                        groupPosBar(player)
+                    }
+                    viewPosBar(player , op.pos , true , ui2 ,()=>{
+                        for(var p of op.group.pos){
+                            if(un(p.name)){
+                                op.group.pos.splice(op.group.pos.indexOf(p),1)
+                            }
+                        }
+                        save_group(op.group)
+                    } ,()=>{
+                        groupPosBar(player)
+                    })
+                }
+            })
+        }
+    }
+    ui.btns.push({
+        text : "添加传送点",
+        icon : ui_icon.add,
+        func : ()=>{
+            var groups = get_player_groups(player)
+            var can_groups = []
+            for(var group of groups){
+                if(group.pos.length < 30){
+                    can_groups.push(group)
+                }
+            }
+            
+            if(can_groups.length === 0){
+                tip(player,"当前无队伍可添加传送点！",()=>{
+                    groupPosBar(player)
+                })
+            }else{
+                var group_names = []
+                for(var i=0;i<can_groups.length;i++){
+                    group_names.push(can_groups[i].name)
+                }
+                var ui = new infoBar()
+                ui.title = "选择队伍"
+                ui.cancel = ()=>{
+                    groupPosBar(player)
+                }
+                ui.options("index","选择队伍",group_names,0)
+                ui.show(player,(r)=>{
+                    var id = can_groups[r.index].id
+                    var group = get_group(id)
+                    group.pos.push({})
+                    editPosBar(player,group.pos[group.pos.length - 1],()=>{
+                        for(var p of group.pos){
+                            if(un(p.name)){
+                                group.pos.splice(group.pos.indexOf(p),1)
+                            }
+                        }
+                        save_group(group)
+                    },()=>{
+                        groupPosBar(player)
+                    })
+                })
+            }
+        }
+    })
+
+    ui.show(player)
+}
+
+function worldPosBar(player){
+    var ui = new btnBar()
+    ui.title = "世界公共点"
+    ui.body = "管理世界的传送点"
+    for(var pos of world_pos){
+        ui.btns.push({
+            text : `[${get_di(pos.di).name}]${pos.name}`,
+            icon : pictures[pos.icon],
+            op : {
+                "pos" : pos
+            },
+            func : (op)=>{
+                var ui2 = new btnBar()
+                ui2.cancel = ()=>{
+                    worldPosBar(player)
+                }
+                viewPosBar(player , op.pos , (get_id(player) === op.pos.owner || get_op_level(player) > 0) , ui2 ,()=>{
+                    save_world_pos()
+                } ,()=>{
+                    worldPosBar(player)
+                })
+            }
+        })
+    }
+    if(world_pos.length < 100){
+        ui.btns.push({
+            text : "添加传送点",
+            icon : ui_icon.add,
+            func : ()=>{
+                world_pos.push({})
+                editPosBar(player,(world_pos[world_pos.length-1]),()=>{
+                    save_world_pos()
+                },()=>{
+                    worldPosBar(player)
+                })
+            }
+        })
+    }
+
+    ui.show(player)
+}
+
+function personalPosBar(player,goal){
+    var ui = new btnBar()
+    ui.title = "个人传送点"
+    ui.body = "管理您的传送点"
+    for(var pos of goal.pos){
+        ui.btns.push({
+            text : `[${get_di(pos.di).name}]${pos.name}`,
+            icon : pictures[pos.icon],
+            op : {
+                "pos" : pos
+            },
+            func : (op)=>{
+                var ui2 = new btnBar()
+                ui2.cancel = ()=>{
+                    personalPosBar(player,goal)
+                }
+                viewPosBar(player , op.pos , true , ui2 ,()=>{
+                    save_player_pos(goal)
+                } ,()=>{
+                    personalPosBar(player,goal)
+                })
+            }
+        })
+    }
+    if(goal.pos.length < config.tp.per_count){
+        ui.btns.push({
+            text : "添加传送点",
+            icon : ui_icon.add,
+            func : ()=>{
+                goal.pos.push({})
+                editPosBar(player,(goal.pos[goal.pos.length-1]),()=>{
+                    save_player_pos(goal)
+                },()=>{
+                    personalPosBar(player,goal)
+                })
+            }
+        })
+    }
+    if(get_op_level(player) > 0){
+        ui.btns.push({
+            text : "管理玩家个人点",
+            icon : ui_icon.edit,
+            func : ()=>{
+                choosePlayer(player,world.getAllPlayers(),(ps)=>{
+                    if(ps.length > 0){
+                        personalPosBar(player,ps[0])
+                    }else{
+                        personalPosBar(player,goal)
+                    }
+                })
+            }
+        })
+    }
+
+    ui.show(player)
+}
+
+function sharePosBar(player,pos){
+    var ui = new infoBar()
+    ui.title = "分享坐标点"
+    ui.range("time","分享时间/秒",10,600,10,300)
+    ui.options("p","分享玩家",["所有玩家","部分玩家"],0)
+    ui.show(player,(r)=>{
+        var p = {...pos}
+        p.time = Date.now() + r.time*1000
+        switch(r.p){
+            case 0:
+                var list = []
+                for(var pl of world.getAllPlayers()){
+                    list.push(get_id(pl))
+                }
+                p.list = list
+                break
+            case 1:
+                var list = []
+                choosePlayer(player,world.getAllPlayers(),(ps)=>{
+                    for(var pl of ps){
+                        list.push(get_id(pl))
+                    }
+                })
+                p.list = list
+                break
+        }
+        share_pos.push(p)
+    })
+}
+
+function random_tp(player,now){
+    tp_entity(player,player.dimension,player.location.x+get_random_tp_range(),400,player.location.z+get_random_tp_range(),true)
+                var id = system.runInterval(()=>{
+                    var time = Date.now()
+                    var lo = player.location
+                    var block = get_block(player.dimension,{x:lo.x,y:64,z:lo.z})
+                    if(!un(block)){
+                        for(var i = 100;i>player.dimension.heightRange.min;i--){
+                            lo.y = i
+                            var b = get_block(player.dimension,lo)
+                            if(!un(b)){
+                                if(!b.isAir){
+                                    b = get_block(player.dimension,{x:lo.x , y:lo.y +2 ,z:lo.z})
+                                    if(!un(b)){
+                                        if(b.isAir){
+                                            b = get_block(player.dimension,{x:lo.x , y:lo.y +1 ,z:lo.z})
+                                            if(!un(b)){
+                                                if(b.isAir){
+                                                    break
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        tp_entity(player,player.dimension,lo.x,lo.y+1,lo.z,false)
+                        system.clearRun(id)
+                    }
+                },20)
+                player.last_tp = now
+}
+
+function posBar(player){
+    push_text("pos.body","此处保存您的所有传送点/n您可以编辑、修改、分享传送点")
+    push_text("pos.name","传送系统")
+    
+    
+    var now = Date.now()
+    var ui = new btnBar()
+    ui.title = get_text("pos.name")
+    ui.body = tran_text(player,get_text("pos.body"))
+    for(var pos of public_pos){
+        ui.btns.push({
+            text : `[公共]${pos.name}`,
+            icon : pictures[pos.icon],
+            op :{
+                "pos" : pos
+            },
+            func : (op)=>{
+                var ui2 = new btnBar()
+                ui2.cancel = ()=>{
+                    posBar(player)
+                }
+                viewPosBar(player , op.pos , is_public_editable(player) , ui2 ,()=>{
+                    save_public_pos()
+                } ,()=>{
+                    posBar(player)
+                })
+            }
+        })
+    }
+    
+    for(var pos of share_pos){
+        if(now > pos.time || !is_number(pos.time) || !is_string(pos.name)){
+            delete share_pos[pos]
+        }else{
+            if(array_has(pos.list,get_id(player))){
+                ui.btns.push({
+                    text : `[分享][${get_di(pos.di).name}]${pos.name}\n剩余时间:${-Math.round((now - pos.time)/1000)}s`,
+                    icon : pictures[pos.icon],
+                    op : {
+                        "pos":pos
+                    },
+                    func : (op)=>{
+                        var ui2 = new btnBar()
+                        ui2.cancel = ()=>{
+                            posBar(player)
+                        }
+                        viewPosBar(player , op.pos , is_public_editable(player)  , ui2 ,function(){},()=>{
+                            posBar(player)
+                        })
+                    } 
+                })
+            }
+            
+        }
+    }
+
+    if(config.tp.pp){
+        ui.btns.push({
+            text : "传送玩家",
+            icon : ui_icon.heart,
+            func : ()=>{
+                var ps = world.getAllPlayers()
+                var names = []
+                for(var i=0;i<ps.length;i++){
+                    names.push(ps[i].name)
+                }
+                var ui = new infoBar()
+                ui.title = "传送玩家"
+                ui.options("p","选择玩家",names,0)
+                ui.options("mode","方向",["你 > 对方","对方 > 你"],0)
+                ui.show(player,(r)=>{
+                    var goal = ps[r.p]
+                    goal.tpa = {
+                        goal : player,
+                        mode : r.mode,
+                        time : Date.now()+60*1000
+                    }
+                    chat(`玩家${player.name}向你发起传送请求\n方向${r.mode === 0 ? "对方 > 你":"你 > 对方"}\n一分钟内输入+tpaccept即可传送`,[goal])
+                })
+            }
+        })
+    }
+    if(config.tp.die && !un(player.last_die) && now - player.last_tp > config.tp.down*1000){
+        var die = player.last_die
+        ui.btns.push({
+            text : "返回死亡点",
+            icon : ui_icon.die,
+            func : ()=>{
+                tp_entity(player,die.di,die.x,die.y,die.z,true)
+            }
+        })
+    }
+    if(config.tp.back && is_array(player.back_pos)){
+        ui.btns.push({
+            text : "返回上一位置",
+            icon : ui_icon.back,
+            func : ()=>{
+                tp_entity(player,player.back_pos[0],player.back_pos[1],player.back_pos[2],player.back_pos[3],true)
+                player.back_pos = ""
+            }
+        })
+    }
+
+    if(config.tp.per && config.tp.per_count > 0){
+        ui.btns.push({
+            text : "个人传送点",
+            icon : ui_icon.player,
+            func : ()=>{
+                personalPosBar(player,player)
+            }
+        })
+    }
+
+    if(config.tp.world){
+        ui.btns.push({
+            text : "世界公共点",
+            icon : ui_icon.world,
+            func : ()=>{
+                worldPosBar(player)
+            }
+        })
+    }
+    if(config.tp.group){
+        ui.btns.push({
+            text : "群组公共点",
+            icon : ui_icon.group,
+            func : ()=>{
+                groupPosBar(player)
+            }
+        })
+    }
+
+    if((config.tp.random_range > 0 && now - player.last_tp > config.tp.down*1000) && (player.dimension.id !== "minecraft:the_end" || config.tp.random_end === true)){
+        ui.btns.push({
+            text : "随机传送",
+            icon : ui_icon.compass,
+            func : ()=>{
+                random_tp(player,now)
+            }
+        })
+    }
+
+    if(is_public_editable(player)){
+        ui.btns.push({
+            text : "添加固定传送点",
+            icon:ui_icon.add,
+            func : ()=>{
+                public_pos.push({})
+                editPosBar(player,public_pos[public_pos.length-1],()=>{
+                    save_public_pos()
+                },()=>{
+                    posBar(player)
+                })
+            }
+        })
+    }
+
+    ui.show(player)
+}
+
+function get_block(di,lo){
+    var block = undefined
+    try{
+       block = di.getBlock(lo)
+    }catch(err){}
+    return block
+}
+
+function landBar(player , goal){
+
+    var ui = new btnBar()
+    ui.title = "领地管理"
+
+    if(un(world.scoreboard.getObjective(config.land.board))){
+        confirm(player,"计分板配置错误！领地功能无法使用！")
+        return
+    }
+
+    var text = ""
+    var l = get_land_by_pos(goal.dimension,goal.location)
+    if(is_string(l.name)){
+        text += `当前领地：${l.name}(id:${l.id})\n`
+    }
+    
+    ui.body = text + `你好${goal.name}\n管理您的领地\n您的领地数量:${goal.lands.length}`
+    if(goal.lands.length < config.land.max || get_op_level(goal) > 0){
+       ui.btns.push({
+            text : "添加领地",
+            icon : ui_icon.add,
+            func : ()=>{
+                player.landing.mode = 1
+                tip(player,array2string([
+                    "领地设置方法:",
+                    "空手选取方块点",
+                    "输入+land命令 或 打开主菜单 即可进入创建页面",
+                    "创建页面可更改Y轴",
+                    "创建页面选择 暂时预览 模式可以继续修改坐标点"
+                    
+                ]))
+            }
+        }) 
+    }
+    
+    for(var land_id of goal.lands){
+        var land = get_land(land_id)
+        if(is_string(land.name)){
+            ui.btns.push({
+                text : `[${get_di(land.di).name}]${land.name}`,
+                op : {
+                    id : land.id
+                },
+                func : (op)=>{
+                    viewLandBar(player,goal,op.id)
+                }
+            })
+        }
+    }
+    
+    ui.show(player)
+}
+
+function array2line(array){
+    var text = ""
+    for(var t of array){
+        text += t + ","
+    }
+    text = text.slice(0,text.length-1)
+    return text
+}
+
+function vector3_to_string(vec){
+    return  `(${vec.x.toFixed(1)},${vec.y.toFixed(1)},${vec.z.toFixed(1)})`
+}
+
+function editLandPermissionBar(player,goal,land,type){
+    land.mem_per = to_array(land.mem_per)
+    land.other_per = to_array(land.other_per)
+
+    var ui = new infoBar()
+    if(type === 0){
+        ui.title = "编辑成员权限"
+    }else{
+        ui.title = "编辑访客权限"
+    }
+
+    for(var per of data_format.land_permission){
+        if(type === 0){
+            ui.toggle(per,get_text(per),array_has(land.mem_per,per))
+        }else{
+            ui.toggle(per,get_text(per),array_has(land.other_per,per))
+        }
+    }
+
+    ui.show(player,(r)=>{
+        var result = []
+        for(var k in r){
+            if(r[k] === true){
+                result.push(k)
+            }
+        }
+        if(type === 0){
+            land.mem_per = result
+        }else{
+            land.other_per = result
+        }
+
+        save_land(land)
+        viewLandBar(player,goal,land.id)
+    })
+}
+
+function viewLandBar(player,goal,id){
+    var land = get_land(id)
+    var ui = new btnBar()
+    ui.title = "领地"
+    ui.body = [
+        `领地名:${land.name}`,
+        `领地ID:${land.id}`,
+        `范围:${vector3_to_string(land.from)} 到 ${vector3_to_string(land.to)}`,
+        `领地主人:${get_name_by_id(land.creater)}`,
+        `成员:${array2line(land.member)}`,
+        `开放队伍:${array2line(land.group)}`
+    ]
+     if(is_number(land.price)){
+        ui.body.push(`价格:${land.price}`)
+     }
+    if(land_member_level(player,land) >= 3){
+    ui.btns.push({
+        text : "编辑领地名",
+        icon : ui_icon.edit,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "编辑领地名"
+            ui2.cancel = ()=>{
+                viewLandBar(player,goal,id)
+            }
+            ui2.input("name","领地名","输入领地名",land.name)
+            ui2.show(player,(r)=>{
+                land.name = r.name
+                save_land(land)
+                viewLandBar(player,goal,id)
+            })
+        }
+    })
+    
+    ui.btns.push({
+        text : "编辑欢迎语",
+        icon : ui_icon.content,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "编辑欢迎语"
+            ui2.cancel = ()=>{
+                viewLandBar(player,goal,id)
+            }
+            ui2.input("wel","欢迎语","输入欢迎语",land.wel)
+            ui2.show(player,(r)=>{
+                land.wel = r.wel
+                save_land(land)
+                viewLandBar(player,goal,id)
+            })
+        }
+    })
+    
+    ui.btns.push({
+        text : "编辑开放队伍",
+        icon : ui_icon.group,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "编辑开放队伍"
+            ui2.cancel = ()=>{
+                viewLandBar(player,goal,id)
+            }
+            ui2.input("group","开放队伍(多个队伍间用英文,间隔)","如:58965,695632,256699",array2line(land.group))
+            ui2.show(player,(r)=>{
+                var groups = r.group.split(",")
+                array_clear(groups,"")
+                land.group = groups
+                save_land(land)
+                viewLandBar(player,goal,id)
+            })
+        }
+    })
+
+    ui.btns.push({
+        text : "编辑成员权限",
+        func : ()=>{
+            editLandPermissionBar(player,goal,land,0)
+        }
+    },
+    {
+        text : "编辑访客权限",
+        func : ()=>{
+            editLandPermissionBar(player,goal,land,1)
+        }
+    })
+    
+    ui.btns.push({
+        text : "添加成员",
+        icon : ui_icon.add,
+        func : ()=>{
+            var players = []
+            for(var p of world.getAllPlayers()){
+                if(!array_has(land.member,p.name) && get_id(p) !== land.creater){
+                    players.push(p)
+                }
+            }
+            choosePlayer(player,players,(ps)=>{
+                for(var p of ps){
+                    land.member.push(p.name)
+                }
+                save_land(land)
+                viewLandBar(player,goal,id)
+            })
+        }
+    })
+    
+    if(land.member.length > 0){
+    ui.btns.push({
+        text : "移除成员",
+        icon : ui_icon.rubbish,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "移除成员"
+            ui2.cancel = ()=>{
+                viewLandBar(player,goal,id)
+            }
+            ui2.options("id","移除成员",land.member,0)
+            ui2.show(player,(r)=>{
+                land.member.splice(r.id,1)
+                save_land(land)
+                viewLandBar(player,goal,id)
+            })
+        }
+    })
+    }
+    
+    ui.btns.push({
+        text : "删除领地",
+        icon : ui_icon.delete,
+        func : ()=>{
+            confirm(player,"确认删除领地？",(r)=>{
+                if(r){
+                    var index = lands.ids.indexOf(land.id)
+                    lands.ids.splice(index,1)
+                    lands.min.splice(index,1)
+                    lands.max.splice(index,1)
+                    array_clear(goal.lands,land.id)
+                    save_player_lands(goal)
+                    save_lands()
+                    landBar(player,goal)
+                    
+                    var board = world.scoreboard.getObjective(config.land.board)
+                    if(!un(board)){
+                        if(!un(goal.scoreboardIdentity) && is_number(land.price)){
+                            board.addScore(goal,land.price)
+                        }
+                    }
+                }else{
+                    viewLandBar(player,goal,id)
+                }
+            })
+        }
+    })
+    }
+    else{
+        ui.btns.push({
+            text : "关闭",
+            icon : ui_icon.delete,
+            func : ()=>{}
+        })
+    }
+    ui.show(player)
+}
+
+function get_random_tp_range(){
+    return random_int(config.tp.random_range*2) - config.tp.random_range
+}
+
+function managerStoreGroupsBar(player,type){
+    var ui = new btnBar()
+    ui.title = "编辑分组"
+    ui.text = ["管理分组","注意：分组添加后不能修改，只能删除重新添加"]
+    ui.btns = [{
+        text : "新增分组",
+        icon : ui_icon.add,
+        func : ()=> {
+            var ui2 = new infoBar()
+            ui2.back = ()=>{
+                managerStoreGroupsBar(player,type)
+            }
+            ui2.title = "新增分组"
+            ui2.input("name","分组名称","名称","")
+            add_pictures_choice(ui2,"选择图标")
+            ui2.show(player,(r)=>{
+                config.store.groups[r.name] = r.icon
+                managerStoreGroupsBar(player,type)
+            })
+        }
+    },{
+        text : "删除分组",
+        icon : ui_icon.add,
+        func : ()=> {
+            var groups = {}
+            groups = config.store.groups
+
+            var ui2 = new infoBar()
+            ui2.back = ()=>{
+                managerStoreGroupsBar(player,type)
+            }
+            ui2.title = "删除分组"
+            for(var name of groups){
+                ui2.toggle(name,name,false)
+            }
+            
+            ui2.show(player,(r)=>{
+                for(var name in r){
+                    if(r[name]){
+                        delete groups[name]
+                    }
+                }
+                save_config()
+                managerStoreGroupsBar(player,type)
+            })
+        }
+    }]
+
+    var groups = []
+    groups = config.store.groups
+    for(var g in groups){
+        ui.btns.push({
+            icon : groups[g],
+            name : g,
+            func : ()=>{
+                managerStoreGroupsBar(player,type)
+            }
+        })
+    }
+
+    ui.show(player)
+}
+
+function manageStoreBar(player,type = 0){
+    var ui = new btnBar()
+    ui.title = "管理商店"
+    ui.text = "在这里编辑商店"
+    ui.btns = [{
+        text : "修改商店页面文字",
+        icon : ui_icon.edit,
+        func : ()=> {
+            var texts = []
+            if(type === 0){
+                texts = to_array(parse_json(get_data("global_store_text")),["商店"])
+            }
+            var editor = new arrayEditor()
+            editor.tran = true
+            editor.back = ()=>{
+                if(type === 0){
+                    save_data("global_store_text",to_json(texts))
+                }
+                manageStoreBar(player,type)
+            }
+            editor.edit(player,texts)
+        }
+    },{
+        text : "配置分组",
+        icon : ui_icon.group,
+        func : ()=> {
+            managerStoreGroupsBar(player,type)
+        }
+    }]
+
+    if(type === 0){
+        ui.btns.push({
+            text : "配置币种",
+            icon : ui_icon.compass,
+            func : ()=>{
+                var ui2 = new infoBar()
+                ui2.back = ()=>{
+                    manageStoreBar(player,0)
+                }
+                ui2.title = "币种"
+                ui2.input("moneys","统计货币的计分板，多个计分板直接用英文分号;间隔，币种名即为计分板名称","输入计分板ID",config.store.moneys)
+                ui2.show(player,(r)=>{
+                    config.store.moneys = r.moneys
+                    save_config()
+                    manageStoreBar(player,0)
+                })
+            }
+        })
+    }
+
+    ui.btns.push({
+        text : "商品设置说明",
+        icon : ui_icon.info,
+        func :  () =>{
+            confirm(player,array2string([
+                "礼品配置:",
+                "1.输入物品ID,会给予玩家该物品",
+                "2.输入\"chest.x.y.z\"(x/y/z为坐标,维度主世界,该箱子要在常加载区块),会抽取箱子中的物品,物品的数量即为抽到该物品的权重。若物品不可堆叠,则这个物品的下一个物品不在抽取范围内,下一个物品的数量为这个物品的权重。",
+                "3.输入\"score.计分板ID.分数\"可以操作玩家的计分板"
+            ]),(r)=>{
+                manageStoreBar(player,type)
+            })
+        }
+    },{
+        text : "添加商品",
+        icon : ui_icon.add,
+        func : ()=>{
+            editGoodBar(player,type)
+        }
+    })
+}
+
+function get_moneys(){
+    var s = config.store.moneys.split(";")
+    return s
+}
+
+function editGoodBar(player,type,good){
+    if(un(good)){
+        good = {...data_format.good}
+    }
+
+    var groups = ["无"].concat(config.store.groups)
+    var moneys = get_moneys()
+
+    var ui = new infoBar()
+    ui.title = "编辑商品"
+    ui.options("state","状态",["在售","停售"],good.state)
+    ui.options("group","分组",groups,array_has(groups,good.group)?groups.indexOf(good.group):0)
+    ui.input("title","标题","输入标题",good.title)
+    ui.options("type","类型",["售卖手持物品(记录所有特殊值)","收购手持物品(仅记录物品ID)","礼品","快速售卖(不用填名称、描述)"],good.type)
+    ui.input("item_id","礼品配置","输入配置代码",good.item_id)
+    ui.range("count","单次售卖物品数量/收购最低数量/礼品单物品数量",1,64,1,good.count)
+    ui.input("item_name","交易(或物品)名称","输入名称",good.item_name)
+    ui.input("description","交易描述","输入描述",good.description)
+    ui.options("money","币种",moneys,array_has(moneys,good.money)?groups.indexOf(good.money):0)
+    ui.input("price","单次交易价格","价格必须为整数或0",String(good.price))
+    ui.input("custom_icon","自定义路径图标","输入路径，如textures/items/totem.png",good.custom_icon)
+    add_pictures_choice(ui,"预选图标（预选图标优先级大于自定义图标）",good.icon)
+    ui.input("global_count","全图限量","总限量数,0则不限量",String(good.global_count))
+    ui.input("personal_count","玩家限量","总限量数,0则不限量",String(good.personal_count))
+    ui.options("update_type","刷新方案(不限量不需要填)",["不刷新","隔固定时间刷新","每小时整更新","每天0点更新","每月1日更新"],good.update_type)
+    ui.input("update_time","刷新间隔时间/秒(仅选择\"隔固定时间刷新\"才填)","时间/秒",String(good.update_time))
+    ui.toggle("hide","售馨(包括个人限量与全图限量)之后隐藏该交易(适用于礼品)",good.hide)
+    ui.range("index","优先级(越高显示在越前面,相同时随机排列)",0,100,1,good.index)
+
+    ui.show(player)
+}
+
+function globalStoreBar(player){
+    var ui = new btnBar()
+    ui.title = "商店"
+    ui.text = to_array(parse_json(get_data("global_store_text")),["商店"])
+    
+    if(get_op_level(player) >= 1){
+        ui.btns.push({
+            text : "管理全局商店",
+            icon : ui_icon.setting,
+            func : ()=>{
+                manageStoreBar(player,0)
+            }
+        })
+    }
+
+    ui.show(player)
+
+}
+
+function cdBar(player){
+
+    if(Date.now() - to_number(player.last_cd) < 1000){
+        return
+    }else{
+        player.last_cd = Date.now()
+    }
+    
+    if(player.landing.mode === 1){
+        createLandBar(player)
+        return
+    }
+    
+    push_text("cd.name","主菜单")
+    push_text("cd.pos","传送系统")
+    push_text("cd.kill","自杀")
+    push_text("cd.chat","聊天设置")
+    push_text("cd.land","领地")
+    push_text("cd.group","群组")
+    push_text("cd.board","公告")
+
+    var ui = new btnBar()
+    ui.title = get_text("cd.name")
+    ui.body = tran_text(player,to_array(parse_json(get_data("menu_text")),data_format.menu),true)
+    ui.busy = null
+
+
+    if(player.in_land !== ""){
+        var land = get_land(player.in_land)
+        ui.btns.push({
+            text : `领地:${land.name}\n领地主:${get_name_by_id(land.creater)}`,
+            icon : ui_icon.land,
+            func : ()=>{
+                viewLandBar(player,player,land.id)
+            }
+        })
+    }
+    
+    ui.btns.push({
+        text : get_text("cd.pos"),
+        icon : ui_icon.pos,
+        func :()=>{
+            posBar(player)
+        }
+    })
+    ui.btns.push({
+        text : get_text("cd.chat"),
+        icon : ui_icon.chat,
+        func :()=>{
+            setChatBar(player)
+        }
+    })
+    if(config.land.able){
+        ui.btns.push({
+            text : get_text("cd.land"),
+            icon : ui_icon.land,
+            func :()=>{
+                landBar(player,player)
+            }
+        })
+    }
+    if(config.groups.able){
+        ui.btns.push({
+            text : get_text("cd.group"),
+            icon : ui_icon.player,
+            func :()=>{
+                groupsBar(player)
+            }
+        })
+    }
+
+    if(config.store.able){
+        ui.btns.push({
+            text : "商店",
+            icon : ui_icon.trade,
+            func :()=>{
+                globalStoreBar(player)
+            }
+        })
+    }
+
+    if(config.tran.able){
+        ui.btns.push({
+            text : "转账机",
+            icon : ui_icon.trade,
+            func :()=>{
+                tranBar(player)
+            }
+        })
+    }
+    if(config.game.kill){
+        ui.btns.push({
+            text : get_text("cd.kill"),
+            icon : ui_icon.sword,
+            func :()=>{
+                player.kill()
+            }
+        })
+    }
+    
+    if(get_board_ids().length > 0 && config.board.able){
+    ui.btns.push({
+        text : get_text("cd.board"),
+        icon : ui_icon.sign,
+        func :()=>{
+            show_board(player)
+        }
+    })
+    }
+    
+    if(get_op_level(player) >= 1){
+        ui.btns.push({
+            text : "管理界面",
+            icon : ui_icon.op,
+            func :()=>{
+                opBar(player)
+            }
+        })
+    }
+    ui.show(player)
+}
+
+function usfTickCheck(player){
+    chat("正在进行时长为5s的性能检测...",[player])
+    var start_tick = system.currentTick
+    system.runTimeout(()=>{
+        var fps = ((system.currentTick - start_tick)/5).toFixed(2)
+        
+        var fps_text = "极其卡顿"
+        if(fps > 10){fps_text = "卡顿"}
+        if(fps > 14){fps_text = "不足"}
+        if(fps > 16){fps_text = "正常"}
+        if(fps > 18){fps_text = "优"}
+        
+        var ui = new btnBar()
+        ui.title = "插件性能检查"
+        ui.body = [
+            "检测用时:5s",
+            `平均FPS:${fps}(${fps_text})`,
+            `配置文件占用:${get_string_length(to_json(config))}/32767`
+        ]
+        ui.btns = [{
+            text : "管理界面",
+            icon:ui_icon.op,
+            func :()=>{
+                opBar(player)
+            }
+        }]
+        ui.show(player)
+    },100)
+}
+
+function banListCheck(player){
+    var ui = new btnBar()
+    ui.title = "封禁列表管理"
+    ui.body = ["管理封禁列表",
+    "注：玩家名与玩家id皆有效",
+    "封禁列表:"]
+
+    var list = get_ban_list()
+    for(var id of list){
+        ui.body.push(`${get_name_by_id(id)}(${id})`)
+    }
+
+    ui.btns = [{
+        text : "添加并立即踢出玩家",
+        icon : ui_icon.add,
+        func : ()=>{
+            choosePlayer(player,world.getAllPlayers(),(ps)=>{
+                for(var p of ps){
+                    list.push(String(get_id(p)))
+                    kick(p,"你已被封禁！")
+               }
+               save_data("ban",to_json(list))
+               banListCheck(player)
+            })
+        }
+    }]
+
+    if(list.length > 0){
+        ui.btns.push({
+            text : "移除玩家",
+            icon : ui_icon.delete,
+            func : ()=>{
+                var ui = new infoBar()
+                ui.title = "移除玩家"
+                for(var id of list){
+                    ui.toggle(id,`${get_name_by_id(id)}(${id})`,false)
+                }
+                ui.show(player,(r)=>{
+                    for(var k of Object.keys(r)){
+                        if(r[k] === true){
+                            array_clear(list,k)
+                        }
+                    }
+                    save_data("ban",to_json(list))
+                    banListCheck(player)
+                })   
+            }
+        })
+    }
+
+    ui.btns.push({
+        text : "编辑列表",
+        icon : ui_icon.edit,
+        func :()=>{
+            var editor =new arrayEditor()
+            editor.back =()=>{
+                save_data("ban",to_json(list))
+                banListCheck(player)
+            }
+            editor.edit(player,list)
+        }
+    })
+
+    ui.show(player)
+}
+
+function get_left_time(p){
+    return Math.round(p.info.ban_time - Date.now())
+}
+
+function stopPlayerBar(player){
+    var ps = world.getAllPlayers()
+    var texts = []
+    var ui = new infoBar()
+    ui.title = "屏蔽/禁言玩家"
+    for(var i=0;i<ps.length;i++){
+        var p = ps[i]
+        
+        var text = p.name
+        if(p.info.ban_time > Date.now()){
+            text += `(禁言中，剩余${Math.round(get_left_time(p)/1000)}s)`
+        }
+        if(p.info.block){
+            text += "(屏蔽中)"
+        }
+        texts.push(text)
+    }
+
+    ui.options("id","选择玩家",texts,0)
+    ui.input("left","禁言时间/s(设为0则取消禁言)","输入时间","0")
+    ui.toggle("block","屏蔽(此玩家不会收到公共消息)",false)
+
+    ui.show(player,(r)=>{
+        var p = ps[r.id]
+        r.left = to_number(parseInt(r.left),0)
+        p.info.ban_time = Date.now() + r.left*1000
+        p.info.block = r.block
+        save_player_info(p)
+        opBar(player)
+    })
+
+}
+
+function tagSetBar(player){
+    var ps = world.getAllPlayers()
+    var names = []
+    for(var p of ps){
+        names.push(`${p.name}(${get_chat_tag(p)})`)
+    }
+
+    var ui =new infoBar()
+    ui.title = "头衔设置"
+    ui.options("id","选择玩家",names,0)
+    ui.input("tag","你可以通过§e/tag 玩家 add usf.tag:头衔§r来设置玩家头衔\n以及§e/tag 玩家 add usf.tag:Reset§r来重置玩家头衔\n头衔","输入头衔","")
+    ui.show(player,(r)=>{
+        var p = ps[r.id]
+        set_chat_tag(p,r.tag) 
+        opBar(player)
+    })
+}
+
+function two_find_min(array , count){
+    var goal = -1
+    var from = 0
+    var to = array.length-1
+    while(from <= to){
+        var mid = Math.floor((from + to)/2)
+        if(array[mid] <= count && mid > goal){
+            goal = mid
+        }
+        if(array[mid] < count){
+            from = mid + 1
+        }else{
+            to = mid - 1
+        }
     }
     return goal
 }
 
-function add_score(player,count,push = false){
-    if(push === true){
-        if(count >= 0){
-        player.tell("§g获得" + String(count) + "贡献值")
-        }
-        else{
-        player.tell("§g失去" + String(-count) + "贡献值")
-        }
-    }
-    player.runCommandAsync("scoreboard players add @s score " + String(count))
+function find_min_in_lands(dis){
+    return two_find_min(lands.min,dis)
 }
 
-function get_score(player){
-    var score = 0
+function save_lands(){
+    save_data("lands_ids",to_json(lands.ids))
+    save_data("lands_min",to_json(lands.min))
+    save_data("lands_max",to_json(lands.max))
+}
+
+function add_land(player,land){
+    var index = find_min_in_lands(Math.max(land.distance - 65,0))
+    if(index === -1){
+        lands.ids.unshift(land.id)
+        lands.min.unshift(Math.max(land.distance - 65,0))
+        lands.max.unshift(land.distance + 65)
+    }else{
+        lands.ids.splice(index+1,0,land.id)
+        lands.min.splice(index+1,0,Math.max(land.distance - 65,0))
+        lands.max.splice(index+1,0,land.distance + 65)
+    }
+    save_lands()
+    player.lands.push(land.id)
+    save_player_lands(player)
+}
+
+function save_land(land){
+    save_data(`land.${land.id}`,to_json(land))
+}
+
+function is_land_in_other(di,lo1,lo2){
+    var center = {
+        x : (lo1.location.x + lo2.location.x)/2,
+        y : (lo1.location.y + lo2.location.y)/2,
+        z : (lo1.location.z + lo2.location.z)/2
+    }
+    var dis = Math.round(Math.sqrt(Math.pow(Math.abs(center.x),2) + Math.pow(Math.abs(center.z),2)))
+    var i = two_find_min(lands.min,dis)
+    if(i === -1){
+        return true
+    }
+    for(i >= 0 ;i--;){
+        if(lands.max[i] < dis){
+            return true
+        }
+        var land = get_land(lands.ids[i])
+        if(is_string(land.name)){
+            if(land.di === di.id){
+            if(
+               ((lo1.x < land.from.x && lo2.x < land.from.x && lo1.x < land.to.x && lo2.x < land.to.x) || (lo1.x > land.from.x && lo2.x > land.from.x && lo1.x > land.to.x && lo2.x > land.to.x))
+               ||
+               ((lo1.y < land.from.y && lo2.y < land.from.y && lo1.y < land.to.y && lo2.y < land.to.y) || (lo1.y > land.from.y && lo2.y > land.from.y && lo1.y > land.to.y && lo2.y > land.to.y))
+               ||
+               ((lo1.z < land.from.z && lo2.z < land.from.z && lo1.z < land.to.z && lo2.z < land.to.z) || (lo1.z > land.from.z && lo2.z > land.from.z && lo1.z > land.to.z && lo2.z > land.to.z))
+             ){
+            }else{
+                return false
+            }
+            }
+        }
+    }
+    return true
+}
+
+function createLandBar(player){
+    
+    var ui = new infoBar()
+    ui.busy = null
+    var points = player.landing.points
+    
+    if(!is_land_in_other(player.dimension,points[0],points[1])){
+        show_title(player,"领地重叠！无法创建！")
+        return
+    }
+    
+    
+    var size = {
+        x : Math.abs(points[0].location.x - points[1].location.x) + 1,
+        y : Math.abs(points[0].location.y - points[1].location.y) + 1,
+        z : Math.abs(points[0].location.z - points[1].location.z) + 1,
+    }
+
+    if(size.x > 126.5 || size.z > 126.5){
+        show_title(player,"范围过大！无法创建！\n上限:126*126")
+        return
+    }
+    
+    var board = world.scoreboard.getObjective(config.land.board)
+    var price = Math.round(size.x*size.y*size.z*config.land.price)
+    if(to_number(board.getScore(player)) - price < 0 && config.land.must){
+        show_title(player,"金额不足！无法创建！")
+        return
+    }
+    
+    if(un(player.scoreboardIdentity)){
+        show_title(player,"无法初始化计分板\n请重进游戏")
+        return
+    }
+    
+    ui.title = "新建领地"
+    ui.input("name",`领地尺寸:${size.x} * ${size.y} * ${size.z}\n您的金额:${to_number(board.getScore(player))}\n价格:${price}\n总方块量:${size.x*size.y*size.z}\n始点:${get_block_pos(points[0])}\n终点:${get_block_pos(points[1])}\n领地名:`,"领地名","")
+    ui.range("y1","起点y坐标(修改后请选择预览)",player.dimension.heightRange.min,player.dimension.heightRange.max,1,points[0].y)
+    ui.range("y2","终点y坐标(修改后请选择预览)",player.dimension.heightRange.min,player.dimension.heightRange.max,1,points[1].y)
+    ui.options("type","操作",["暂时预览","取消创建","确认创建"],0)
+    ui.show(player,(r)=>{
+        if(r.type === 0){
+            try{
+                var b = player.dimension.getBlock({x:points[0].location.x,y:r.y1,z:points[0].location.z})
+                if(!un(b)){
+                    points[0] = {location : b.location,x:b.x,y:b.y,z:b.z}
+                }
+                
+                b = player.dimension.getBlock({x:points[1].location.x,y:r.y2,z:points[1].location.z})
+                if(!un(b)){
+                    points[1] = {location : b.location,x:b.x,y:b.y,z:b.z}
+                }
+            }catch(err){}
+            return
+        }
+        if(r.type === 1){
+            player.landing.mode = 0
+            player.landing.points = []
+            return
+        }
+        
+        var ps = get_edge_from_block(points[0].location,points[1].location)
+        points[0] = ps[0]
+        points[1] = ps[1]
+        var land = {
+            "id" : get_di_num(player.dimension) + String(get_random_land_id()),
+            "di" : player.dimension.id,
+            "from" : points[0],
+            "to" : points[1],
+            "creater": get_id(player),
+            "group" : [],
+            "member" : [],
+            "wel":"",
+            "name" : r.name,
+            "price" : price,
+        }
+        var center = {
+            x : (points[1].x + points[0].x)/2,
+            z : (points[1].z + points[0].z)/2
+        }
+        board.setScore(player,to_number(board.getScore(player)) - price)
+        land.distance = Math.round(Math.sqrt(Math.pow(Math.abs(center.x),2) + Math.pow(Math.abs(center.z),2)))
+        add_land(player,land)
+        save_land(land)
+        player.landing.mode = 0
+        player.landing.points = []
+    })
+}
+
+function small_to_big(c1 , c2){
+    if(c1 < c2){
+        return [c1,c2]
+    }
+    return [c2,c1]
+}
+
+function get_edge_from_block(start , end){
+    var tallest = small_to_big(start.y,end.y)[1]+1
+    var shortest = small_to_big(start.y,end.y)[0]
+    var new_start = {
+        x:small_to_big(start.x,end.x)[0],
+        y:tallest,
+        z:small_to_big(start.z,end.z)[0]
+    }
+    var new_end = {
+        x:small_to_big(start.x,end.x)[1]+1,
+        y:shortest,
+        z:small_to_big(start.z,end.z)[1]+1
+    }
+    return [new_start,new_end]
+}
+
+function show_range(start , end , di , co = {red:0.0,green:1.0,blue:1.0,alpha:1.0}){
+    var molang = new mc.MolangVariableMap()
+    molang.setColorRGB("variable.color",co)
+    molang.setVector3("variable.direction",{x:0,y:0,z:0})
+    
+    var tallest = small_to_big(start.y,end.y)[1]+1
+    var shortest = small_to_big(start.y,end.y)[0]
+    var new_start = get_edge_from_block(start , end)[0]
+    var new_end = get_edge_from_block(start , end)[1]
     try{
-        score = world.scoreboard.getObjective("score").getScore(player.scoreboard)
+    for(var cf=small_to_big(new_start.x,new_end.x)[0];cf <= small_to_big(new_start.x,new_end.x)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:cf,y:shortest,z:new_start.z},molang)
     }
-    catch(any){}finally{}
-    return score
-}
-
-function set_score(player,count,push = false){
-    if(push === true){
-        player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e贡献值被设置为` + String(count) + `"}]}`)
+    for(var cf=small_to_big(new_start.x,new_end.x)[0];cf <= small_to_big(new_start.x,new_end.x)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:cf,y:shortest,z:new_end.z},molang)
     }
-    player.runCommandAsync("scoreboard players set @s score " + String(count))
+    for(var cf=small_to_big(new_start.z,new_end.z)[0];cf <= small_to_big(new_start.z,new_end.z)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_start.x,y:shortest,z:cf},molang)
+    }
+    for(var cf=small_to_big(new_start.z,new_end.z)[0];cf <= small_to_big(new_start.z,new_end.z)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_end.x,y:shortest,z:cf},molang)
+    }
+    for(var cf=small_to_big(new_start.x,new_end.x)[0];cf <= small_to_big(new_start.x,new_end.x)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:cf,y:tallest,z:new_start.z},molang)
+    }
+    for(var cf=small_to_big(new_start.x,new_end.x)[0];cf <= small_to_big(new_start.x,new_end.x)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:cf,y:tallest,z:new_end.z},molang)
+    }
+    for(var cf=small_to_big(new_start.z,new_end.z)[0];cf <= small_to_big(new_start.z,new_end.z)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_start.x,y:tallest,z:cf},molang)
+    }
+    for(var cf=small_to_big(new_start.z,new_end.z)[0];cf <= small_to_big(new_start.z,new_end.z)[1];cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_end.x,y:tallest,z:cf},molang)
+    }
+    for(var cf=shortest;cf <= tallest;cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_start.x,y:cf,z:new_start.z},molang)
+    }
+    for(var cf=shortest;cf <= tallest;cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_end.x,y:cf,z:new_start.z},molang)
+    }
+    for(var cf=shortest;cf <= tallest;cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_start.x,y:cf,z:new_end.z},molang)
+    }
+    for(var cf=shortest;cf <= tallest;cf ++){
+        di.spawnParticle("minecraft:wax_particle",{x:new_end.x,y:cf,z:new_end.z},molang)
+    }
+    }catch(err){}
 }
 
 
-function run_command(text){
-    world.getDimension("minecraft:overworld").runCommandAsync(text)
-}
-
-world.events.itemStartCharge.subscribe(event => {
-    //world.say("1")
-})
-
-world.events.blockBreak.subscribe(event => {
-    if(event.player.unbreak === false || typeof(event.player.unbreak) !== "boolean"){
-    if(typeof(event.player.last_break) === "number"){
-            var offest = Date.now() - event.player.last_break
-            if(offest < 20){
-                event.player.break_count.push([event.block.location,event.brokenBlockPermutation.type])
-                if(event.player.break_count.length > 3){
-                kick(event.player,"范围挖掘方块",true)
-                event.player.unbreak = true
-                for(var cf of event.player.break_count){
-                    event.dimension.getBlock(cf[0]).setType(cf[1])
-                }
-                }
-            }
-            else{
-                event.player.break_count = []
-            }
-        }
-        else{
-                event.player.break_count = []
-            }
+function getPlayerItemsBar(player){
+    var block = player.dimension.getBlock(player.location)
+    var p_com = player.getComponent("minecraft:inventory").container
+    var items = []
+    if(!block.isAir){
+        tip(player,"您所在的位置不是空气方块，无法执行背包检查功能！",()=>{
+            opBar(player)
+        })
+        return
     }
     else{
-        event.dimension.getBlock(event.block.location).setType(event.brokenBlockPermutation.type)
-        for(var cf of event.dimension.getEntities({maxDistance:2,location:new Location(event.block.x,event.block.y,event.block.z),type:"item"})){
-            cf.kill()
-        }
-    }
-    event.player.last_break = Date.now()
-    if(typeof(event.player) === "object"){
-        add_score(event.player,1)
-        var block = event.brokenBlockPermutation
-        var test = block_test(block.type.id,true,0)
-        if(test !== "none"){
-            add_history(event.player.name + get_pos(event.player) + "(" + event.player.dimension.name + ")" + "破坏方块" + block.type.id + get_block_pos(event.block))
-        }
-        if(test === "kick" && is_op(event.player) === false){
-            log(event.player.name + get_pos(event.player) + "(" + event.player.dimension.name + ")" + "破坏方块" + block.type.id + get_block_pos(event.block),true)
-            kick(event.player,"破坏非法方块")
-        }
-        /*if(block.type.id === "minecraft:undyed_shulker_box" || block.type.id === "minecraft:shulker_box"){
-            var items = event.player.dimension.getEntities({location:new Location(event.block.x,event.block.y,event.block.z),maxDistance:2,type:"item"})
-            for(var cf of items){
-                var item = cf.getComponent("minecraft:item").itemStack
-                if(item.getLore().length === 0 && (item.typeId === "minecraft:undyed_shulker_box" || item.typeId === "minecraft:shulker_box")){
-                    item.setLore([to_md5(event.player.name)])
-                    world.say("set")
+        choosePlayer(player,world.getAllPlayers(),(ps)=>{
+            for(var p of ps){
+                var com = p.getComponent("minecraft:inventory").container
+                block.setType("minecraft:undyed_shulker_box")
+                var b_com = block.getComponent("minecraft:inventory").container
+                b_com.clearAll()
+
+                for(var i=9;i<com.size;i++){
+                    b_com.setItem(i-9,com.getItem(i))
                 }
-            }
-        }*/
-    }
-})
+                items.push(block.getItemStack(1,true))
+                b_com.clearAll()
 
-world.events.blockPlace.subscribe(event => {
-    if(typeof(event.player) === "object"){
-        add_score(event.player,1)
-        var block = event.block
-        var test = block_test(block,false,1)
-        if(test !== "none"){
-            add_history(event.player.name + get_pos(event.player) + "(" + event.player.dimension.name + ")" + "放置方块" +block.typeId + get_block_pos(block))
-        }
-        if(test === "kick" && is_op(event.player) === false){
-            log(event.player.name + get_pos(event.player) + "(" + event.player.dimension.name + ")" + "放置方块" +block.typeId + get_block_pos(block),true)
-            block.setType(MinecraftBlockTypes.air)
-            kick(event.player,"放置非法方块")
-        }
-        if(block.typeId === "minecraft:chest"){
-            var con = block.getComponent("minecraft:inventory").container
-            var need_kick = false
-            if(con.size === 27){
-            if(con.size - con.emptySlotsCount >0){
-                need_kick = true
+                for(var i=0;i<9;i++){
+                    b_com.setItem(i,com.getItem(i))
                 }
-            }
-            else{if(typeof(event.player.beside_chest) === "object")
-                for(var cf of event.player.beside_chest){
-                    if(cf.block.getComponent("minecraft:inventory").container.size > cf.size){
-                        if(cf.block.getComponent("minecraft:inventory").container.emptySlotsCount - cf.empty < 27){
-                            need_kick = true
-                        }
-                    }
+                com = p.getComponent("minecraft:equippable")
+                b_com.setItem(9,com.getEquipment("Head"))
+                b_com.setItem(10,com.getEquipment("Chest"))
+                b_com.setItem(11,com.getEquipment("Legs"))
+                b_com.setItem(12,com.getEquipment("Feet"))
+
+                b_com.setItem(18,com.getEquipment("Offhand"))
+                items.push(block.getItemStack(1,true))
+
+                b_com.clearAll()
+                for(var item of items){
+                    b_com.addItem(item)
                 }
+                var goal = block.getItemStack(1,true)
+                goal.nameTag = `玩家背包:${p.name}`
+                p_com.addItem(goal)
+                block.setType("minecraft:air")
             }
-            if(need_kick === true){
-                kick(event.player,"放置nbt箱子")
-                block.setType(MinecraftBlockTypes.air)
-                for(var cf of 
-                event.player.dimension.getEntities({maxDistance:2,location:new Location(event.block.x,event.block.y,event.block.z),type:"item"}
-                )){
-                    cf.kill()
-                }
-            }
-        }
+        })
     }
-
-})
-
-world.events.beforePistonActivate.subscribe(event => {
-    var piston = event.block
-    var dir = piston.permutation.getProperty("facing_direction").value
-    var pos = piston.location
-    switch(dir){
-        case "east":
-            pos = new BlockLocation(piston.x-1,piston.y,piston.z)
-            break;
-        case "west":
-            pos = new BlockLocation(piston.x+1,piston.y,piston.z)
-            break;
-        case "north":
-            pos = new BlockLocation(piston.x,piston.y,piston.z+1)
-            break;
-        case "south":
-            pos = new BlockLocation(piston.x,piston.y,piston.z-1)
-            break;
-        case "up":
-            pos = new BlockLocation(piston.x,piston.y+1,piston.z)
-            break;
-        case "down":
-            pos = new BlockLocation(piston.x,piston.y-1,piston.z)
-            break;
-    }
-    pos = event.dimension.getBlock(pos).typeId
-
-    var blocks = event.piston.attachedBlocks
-    for(var cf of blocks){
-    var block = event.dimension.getBlock(cf)
-    if(kick_break_blocks.indexOf(block.typeId) !== -1){
-        event.cancel = true
-        var bader = event.dimension.getPlayers({closest:1,maxDistance:10,location:new Location(cf.x,cf.y,cf.z)})
-        kick(bader,"使用非法活塞")
-    }
-    if(block.typeId === "minecraft:hopper"){
-        event.cancel = true
-        return 0
-    }
-    if(block.typeId === "minecraft:chest"){
-        var item = block.getComponent("minecraft:inventory").container.getItem(0)
-        if(typeof(item) === "object"){if(item.typeId === "minecraft:paper"){
-            var lores = item.getLore()
-            if(lores.indexOf("passpaper") !== -1){
-                event.cancel = true
-            }
-        }}
-    }
-    }
-    pistons_now ++ 
-})
-
-world.events.entitySpawn.subscribe(event => {
-    spawn_now ++ 
-})
-
-
-
-
-world.events.tick.subscribe(event => {
-    var players = world.getAllPlayers()
-    for(var cf=0;cf<works.length;cf++){
-        /*if(cf.time === event.currentTick){
-            switch(cf.type){
-                case "chest-check":
-                    cf.player.tell("正在执行检查")
-                    cf.di.runCommandAsync("replaceitem block "+String(cf.block.x) + " 2 " + String(cf.block.z) +" slot.container 0 keep air").catch(err =>{
-                        kick(cf.player,"非法获取潜影盒")
-                        cf.di.getBlock(new BlockLocation(cf.block.x,3,cf.block.z)).setType(MinecraftBlockTypes.air)
-                    })
-                        cf.di.runCommandAsync("clone " + String(cf.block.x) + " " + String(3) + " " + String(cf.block.z) + " " + String(cf.block.x) + " " + String(3) + " " + String(cf.block.z) + " " + String(cf.block.x) + " " + String(cf.block.y) + " " + String(cf.block.z) + " replace force").then(r =>{
-                        cf.di.getBlock(new BlockLocation(cf.block.x,3,cf.block.z)).setType(cf.replace[0])
-                        cf.di.getBlock(new BlockLocation(cf.block.x,2,cf.block.z)).setType(cf.replace[1])
-                        })
-                    break;
-            }
-        }*/
-        var work = works[cf]
-        switch(work.type){
-            case "far_fall":
-                var location = work.player.location
-                for(var cf1=15;cf1>10;cf1--){
-                var the_block = get_block(work.player.dimension,Math.trunc(location.x),Math.trunc(location.y-cf1),Math.trunc(location.z))
-                if(typeof(the_block) === "object" && the_block !== null){
-                if(the_block.typeId !== "minecraft:air"){
-                    work.player.addEffect(MinecraftEffectTypes.slowFalling,100,1,false)
-                    works.splice(cf,1)
-                    
-                }}}
-                break;
-        }
-    }
-    if(event.currentTick % 20 == 0){
-        run_command("scoreboard players add @a play_time 1")
-        if(time_board === false){
-            run_command("scoreboard players reset * show2")
-            run_command("execute @a ~~~ scoreboard players operation @s show2 = @s play_time")
-            run_command("scoreboard objectives setdisplay list show2")
-            time_board = true
-        }
-        else{
-            run_command("scoreboard players reset * show1")
-            run_command("execute @a ~~~ scoreboard players operation @s show1 = @s play_time")
-            run_command("scoreboard objectives setdisplay list show1")
-            time_board = false
-        }
-    }
-    if(event.currentTick % 6000 == 0){
-        clear_items()
-    }
-    if(event.currentTick % 6000 == 4800){
-        for(var cf of players){
-        cf.onScreenDisplay.setActionBar("§e[清洁工]一分钟后清理所有掉落物")
-        }
-    }
-    if(event.currentTick % 6000 > 5400&&event.currentTick % 20 === 0){
-        for(var cf of players){
-        cf.onScreenDisplay.setActionBar("§e[清洁工]"+ String((event.currentTick%6000-5400)/20) + "s后清理所有掉落物")
-        }
-    }
-    if(event.currentTick % 20 == 0){
-        if(beload === false){
-            reload_all()
-        }
-        tps = (1000 / (Date.now() - tps_ms) *20).toFixed(1)
-        tps_ms = Date.now()
-    }
-    if(event.currentTick % 2 == 0){
-        run_command("kill @e[type=npc,tag=!serverInfomation]")
-        run_command("kill @e[type=command_block_minecart]")
-        for(var dragons of overworld.getEntities({type:"ender_dragon"})){
-            if(dragons.dimension.id !== "minecraft:the_end"){
-            dragons.kill()
-            }
-        }
-        for(var cf=0; cf<players.length; cf++){
-            if(ban_list.indexOf(players[cf].name) !== -1){
-                kick(players[cf],"封禁列表，自动踢出",true)
-            }
-            //test
-            if(players[cf].hasTag("op-work") === true){
-                players[cf].runCommandAsync("title @s actionbar Tps:" + tps + "  Entities:" + String(entities_count) + "\nPistons:" +String(pistons) + " Spawn:" + String(spawn))
-            }
-            if(get_tag(players[cf],"beBan") !== "" && is_op(players[cf]) === false){
-                banBar(players[cf])
-            }
-            if(typeof(players[cf].ro) !== "number"){
-                players[cf].ro = players[cf].rotation.x
-            }
-            else{
-                if(players[cf].has_show !== true && players[cf].rotation.x !== players[cf].ro){
-                    show_board(players[cf])
-                    players[cf].has_show = true
-                }
-            }
-            if(players[cf].hasTag("chesting") === true){
-            }
-            if(players[cf].getComponent("minecraft:health").current <= 0 && players[cf].lastDie != true){
-                add_score(players[cf],3,true)
-                players[cf].diePos = [players[cf].dimension.id , players[cf].location.x , players[cf].location.y , players[cf].location.z]
-                players[cf].lastDie = true
-            }
-            if(players[cf].getComponent("minecraft:health").current > 0){
-                players[cf].lastDie = false
-            }
-        }
-    }
-    if(event.currentTick % 100  == 0){
-    var create_players = world.getPlayers({gameMode:"creative"})
-    for(var cf of create_players){
-        if(is_op(cf) === false){
-        kick(cf,"创造模式")
-        }
-    }
-    var run_time = Date.now()
-    var count = 0
-    var entity = world.getDimension("minecraft:the_end").getEntities({})
-    for(var cf of entity){
-        count++
-    }
-    entity = world.getDimension("minecraft:nether").getEntities({})
-    for(var cf of entity){
-        count++
-    }
-    entity = world.getDimension("minecraft:overworld").getEntities({})
-    for(var cf of entity){
-        count++
-        if(cf.typeId === "minecraft:item"){
-            var item = cf.getComponent("minecraft:item").itemStack
-            if(kick_item.indexOf(item.typeId) != -1){
-                world.say("§e发现违禁物品，已清理")
-                cf.kill()
-            }
-            if(item.typeId.indexOf("spawn_egg") != -1){
-                world.say("§e发现违禁物品，已清理")
-                cf.kill()
-            }
-        }
-    }
-    entities_count = count
-    pistons = pistons_now
-    pistons_now = 0
-    spawn = spawn_now
-    spawn_now = 0
-    //原本：1200
-    //world.say("§4开始随机检查......")
-        if(players.length > 0){
-        for(var cf=0; cf<players.length; cf++){
-            var invent = players[cf].getComponent("minecraft:inventory").container
-            for(var cf1=0; cf1<invent.size; cf1++){
-                var item = invent.getItem(cf1)
-                if(typeof(item) == "object" && is_op(players[cf]) == false){
-                //附魔检查
-                if(item.hasComponent("minecraft:enchantments") === true){
-                    var enList = item.getComponent("minecraft:enchantments").enchantments
-                    var ens = enList[Symbol.iterator]()
-                    var finish = false
-                    while(finish === false){
-                        var result = ens.next()
-                        finish = result.done
-                        if(finish === false){
-                        if(result.value.level > result.value.type.maxLevel){
-                            log("玩家" + players[cf].name + "物品附魔等级过高。物品名：" + item.typeId + "；附魔名：" + result.value.type.id + "；等级：" + result.value.level , true)
-                            if(result.value.level > 5){
-                                kick(players[cf],"作弊附魔")
-                            }
-                            warnBar(players[cf])
-                            item.getComponent("minecraft:enchantments").removeAllEnchantments()
-                        }
-                        }
-                    }
-                }
-                //违禁检查
-                if(kick_item.indexOf(item.typeId) !== -1){
-                        log("玩家" + players[cf].name + "获得违禁物品：" + item.typeId + "物品数量：" + item.amount,true)
-                        invent.clearItem(cf1)
-                        kick(players[cf],"获得违禁物品")
-                        warnBar(players[cf])
-                        break;
-                }
-                if(item.typeId.indexOf("spawn_egg") != -1){
-                    log("玩家" + players[cf].name + "获得违禁物品：" + item.typeId + "物品数量：" + item.amount,true)
-                    invent.clearItem(cf1)
-                    kick(players[cf],"获得违禁物品")
-                    warnBar(players[cf])
-                }
-                if(item.typeId == "minecraft:tnt" && item.amount > 16){
-                    log("玩家" + players[cf].name + "收集违禁物品：" + item.typeId + "物品数量：" + item.amount,true)
-                }
-            }
-            }
-               
-        }
-       }
-       
-       run_time = Date.now() - run_time
-       script_check_run(`tellraw @s {"rawtext":[{"text":"` + "随机检查用时"+String(run_time) +`"}]}`)
-    }
-})
-
-world.events.entityHurt.subscribe(event =>{
-    var name = event.hurtEntity.typeId
-    if(typeof(event.damagingEntity) == "object")
-    if (event.damagingEntity.typeId == "minecraft:player"){
-        if(event.damage > 100 && event.hurtEntity.typeId !== "minecraft:ghast" &&is_op(event.damagingEntity) === false){
-            log("玩家" + event.damagingEntity.name + get_pos(event.damagingEntity) + "(" + event.damagingEntity.dimension.name + ")" + "对" + event.hurtEntity.typeId + get_pos(event.hurtEntity) + "造成了" + String(event.damage) +"点伤害",true)
-            kick(event.damagingEntity,"造成伤害过高")
-            warnBar(event.damagingEntity)
-        }
-        else{
-            if(event.damage > 25){
-            log("玩家" + event.damagingEntity.name + get_pos(event.damagingEntity) + "(" + event.damagingEntity.dimension.name + ")" + "对" + event.hurtEntity.typeId + get_pos(event.hurtEntity) + "造成了" + String(event.damage) +"点伤害",false)
-            }
-        }
-        if(event.hurtEntity.hasComponent("minecraft:health") == true){
-        add_score(event.damagingEntity,1)
-        var max = event.hurtEntity.getComponent("minecraft:health").value
-        var now = event.hurtEntity.getComponent("minecraft:health").current
-        if (now > 0){
-        var text = "目标血量："
-        if (now / max >= 0.66){
-            text = "§4" + text
-        }
-        else{
-        if (now / max < 0.66 && now / max >= 0.33){
-            text = "§e" + text
-        }
-        if (now / max < 0.33){
-            text = "§a" + text
-        }}
-        event.damagingEntity.runCommandAsync("title @s actionbar " + text + String(Math.round(now/max*1000)/10) + "%")
-        }
-        else{
-            add_history(event.damagingEntity.name+ get_pos(event.damagingEntity) + "(" + event.damagingEntity.dimension.name + ")" + "杀死了" +name)
-            add_score(event.damagingEntity,1)
-        }
-        }
-    }
-})
-
-world.events.beforeExplosion.subscribe(event =>{
-    var blocks = event.impactedBlocks
-    var goals = []
-    var di = event.source.dimension
-    for(var cf=0;cf<blocks.length;cf++){
-        var block = di.getBlock(blocks[cf])
-        if(block.typeId === "minecraft:chest"){
-            var item = block.getComponent("minecraft:inventory").container.getItem(0)
-            if(typeof(item) === "object"){
-                item = item.getLore()
-                if(item.indexOf("passpaper") !== -1){
-                    goals.push(blocks[cf])
-                }
-            }
-        }
-    }
-    for(var cf of goals){
-        blocks.splice(blocks.indexOf(cf,1))
-    }
-})
-
-function get_block_from_face(di,location,face){
-    var pos
-        switch(face){
-            case "north":
-                pos = new BlockLocation(location.x,location.y,location.z-1)
-                break;
-            case "south":
-                pos = new BlockLocation(location.x,location.y,location.z+1)
-                break;
-            case "west":
-                pos = new BlockLocation(location.x-1,location.y,location.z)
-                break;
-            case "east":
-                pos = new BlockLocation(location.x+1,location.y,location.z)
-                break
-            case "down":
-                pos = new BlockLocation(location.x,location.y-1,location.z)
-                break;
-            case "up":
-                pos = new BlockLocation(location.x,location.y+1,location.z)
-                break;
-        }
-        var block = di.getBlock(pos)
-        return block
 }
 
-world.events.beforeItemUseOn.subscribe(event =>{
-    /*if(event.item.typeId === "minecraft:shulker_box" || event.item.typeId === "minecraft:undyed_shulker_box"){
-        var lore = event.item.getLore()
-    }*/
-    if(event.source.typeId == "minecraft:player"){
-    var player = event.source
-    var block = event.source.dimension.getBlock(event.blockLocation)
-    if(block.typeId === "minecraft:chest" && player.hasTag("op-work") === false){
-        var item = block.getComponent("minecraft:inventory").container.getItem(0)
-        if(typeof(item) === "object"){if(item.typeId === "minecraft:paper"){
-            var lores = item.getLore()
-            if(lores.indexOf("passpaper") !== -1){
-                var owner = ""
-                var password = ""
-                var open_team = ""
-                var need = true
-                for(var cf=0;cf<lores.length;cf++){
-                    switch(lores[cf].slice(0,1)){
-                        case "o":
-                            owner = lores[cf].split(":")[1]
-                            break;
-                        case "p":
-                            password = lores[cf].split(":")[1]
-                            break;
-                        case "t":
-                            open_team = lores[cf].split(":")[1]
-                            break;
-                    }
-                }
-                
-                if(player.name === owner){
-                    need = false
-                }
-                var index = get_team_by_player(player,0)
-                if(index !== ""){
-                    if(teams[index].id === open_team){
-                        need = false
-                    }
-                }
-                index = get_team_by_player(player,1)
-                if(index !== ""){
-                    if(teams[index].id === open_team){
-                        need = false
-                    }
-                }
-                if(typeof(player.last_chest) === "object"){
-                    if(player.last_chest.x === block.location.x){if(player.last_chest.y === block.location.y){if(player.last_chest.z === block.location.z){
-                    need = false
-                    }}}
-                }
-                
-                if(need === true){
-                    event.cancel = true
-                    chestKeyBar(player,password,block.location,owner)
-                }
-            }
-        }}
-        //event.cancel = true
-    }
-    
-    if(block_test(block,false,1) !== "none"){
-    add_history(event.source.name+ get_pos(event.source) + "(" + event.source.dimension.name +")与" +block.typeId + "方块" + "(" + String(block.x) + "，" + String(block.y) + "，" + String(block.z) + ")" +"交互")
-    }
-    
-    if(event.item.typeId === "minecraft:hopper"){
-        var block = get_block_from_face(event.source.dimension,new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z),event.blockFace)
-        if(block.typeId === "minecraft:chest"){
-            var item = block.getComponent("minecraft:inventory").container.getItem(0)
-            if(typeof(item) === "object"){
-            var lores = item.getLore()
-            if(lores.indexOf("passpaper") !== -1){
-                event.cancel = true
-                event.source.tell("§e密码箱，禁止放置")
-            }
-           }
-        }
-    }
-    if(event.item.typeId === "minecraft:chest"){
-    var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
-    var blocks = []
-    blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x+1,block.y,block.z)))
-    blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x-1,block.y,block.z)))
-    blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y,block.z+1)))
-    blocks.push(event.source.dimension.getBlock(new BlockLocation(block.x,block.y,block.z-1)))
-    for(var cf of blocks){
-    if(cf.typeId === "minecraft:chest"){
-        var item = cf.getComponent("minecraft:inventory").container.getItem(0)
-        if(typeof(item) === "object"){
-        var lores = item.getLore()
-        if(lores.indexOf("passpaper") !== -1){
-            for(var cf1 of lores){
-                var text = cf1.split(":")
-                if(text[0] === "owner"){
-                    if(text[1] !== event.source.name){
-                        event.cancel = true
-                    }
-                }
-            
-            }
-        }
-       }
-    }
-    }
-    }
-    //需要补充
-    if(event.item.typeId === "minecraft:piston"){
-        var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
-        var lo = {"x" : block.x,"y" : block.y,"z" : block.z}
-        var piston_nearly = []
-        var nearly = event.source.dimension.getBlock(new BlockLocation(lo.x+1 , lo.y , lo.z))
-        
-    
-    }
-    }
-    
-    if(event.item.typeId === "minecraft:wooden_axe" && player.hasTag("op-work")){
-        var block = event.source.dimension.getBlock(event.blockLocation)
-        if(typeof(player.axe) !== "object"){
-        player.axe = {}
-        player.axe.blocks = []
-        player.axe.di = player.dimension
-        }
-        if(player.dimension.id !== player.axe.di.id){
-            player.axe.blocks = []
-            player.axe.di = player.dimension
-        }
-        player.axe.blocks.push(block)
-        if(player.axe.blocks.length > 2){
-            player.axe.blocks.splice(0,1)
-        }
-        player.playSound("dig.wood")
-        player.dimension.spawnParticle("minecraft:villager_angry",new Location(block.x+0.5,block.y+1,block.z+0.5),new MolangVariableMap().setSpeedAndDirection("1",1,new Vector(0,-5,0)))
-        player.tell("§a标记成功" + get_block_pos(block))
-        
-    
-    
-    }
-    
-    if(event.item.typeId === "minecraft:chest"){
-        var block = get_block_from_face(event.source.dimension,event.blockLocation,event.blockFace)
-        player.beside_chest = []
-        
-        var the_block = [event.source.dimension.getBlock(new BlockLocation(block.x+1 , block.y , block.z))]
-        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x-1 , block.y , block.z)))
-        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x , block.y , block.z+1)))
-        the_block.push(event.source.dimension.getBlock(new BlockLocation(block.x , block.y , block.z-1)))
-        
-        for(var cf of the_block){
-        if(cf.typeId === "minecraft:chest"){
-            player.beside_chest.push({
-                "block":cf,
-                "size":cf.getComponent("minecraft:inventory").container.size,
-                "empty":cf.getComponent("minecraft:inventory").container.emptySlotsCount
-            })
-        }
-    }
-    }
-})
-
-world.events.itemUseOn.subscribe(event =>{
-    if(event.source.typeId === "minecraft:player"){
-    /*if(event.item.typeId === "minecraft:shulker_box" || event.item.typeId === "minecraft:undyed_shulker_box"){
-        var pos
-        switch(event.blockFace){
-            case "north":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y,event.blockLocation.z-1)
-                break;
-            case "south":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y,event.blockLocation.z+1)
-                break;
-            case "west":
-                pos = new BlockLocation(event.blockLocation.x-1,event.blockLocation.y,event.blockLocation.z)
-                break;
-            case "east":
-                pos = new BlockLocation(event.blockLocation.x+1,event.blockLocation.y,event.blockLocation.z)
-                break
-            case "down":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y,event.blockLocation.z)
-                break;
-            case "up":
-                pos = new BlockLocation(event.blockLocation.x,event.blockLocation.y+1,event.blockLocation.z)
-                break;
-        }
-        var block = event.source.dimension.getBlock(pos)
-        world.say(block.typeId)
-        if(block.typeId === "minecraft:shulker_box" || block.typeId === "minecraft:undyed_shulker_box"){
-        var lore = event.item.getLore()
-        if(lore.length === 0){
-            var replace = [event.source.dimension.getBlock(new BlockLocation(block.x,3,block.z)).type,event.source.dimension.getBlock(new BlockLocation(block.x,2,block.z)).type]
-            event.source.dimension.runCommandAsync("clone " + String(block.x) + " " + String(block.y) + " " + String(block.z) + " " + String(block.x) + " " + String(block.y) + " " + String(block.z) + " " + String(block.x) + " " + String(3) + " " + String(block.z) + " replace force").then(r =>{block.setType(MinecraftBlockTypes.air)})
-            event.source.dimension.getBlock(new BlockLocation(block.x,2,block.z)).setType(MinecraftBlockTypes.hopper)
-            works.push({
-                "type":"chest-check",
-                "replace":replace,
-                "block":block,
-                "player":event.source,
-                "di":event.source.dimension,
-                "time":system.currentTick + 20
-            })
-            world.say(block.typeId)
-        }}
-    }*/}
-})
-
-
-world.events.entityHit.subscribe(event =>{
-    if(typeof(event.hitBlock) === "object" && event.entity.typeId === "minecraft:player"){
-        if(event.hitBlock.typeId === "minecraft:chest" && event.entity.hasTag("op-work") === false){
-            var item = event.hitBlock.getComponent("minecraft:inventory").container.getItem(0)
-            if(typeof(item) === "object"){
-                item = item.getLore()
-                var owner = ""
-                for(var cf=0;cf<item.length;cf++){
-                    if(item[cf].indexOf("owner") === 0){
-                        owner = item[cf].split(":")[1]
-                    }
-                }
-                if(item.indexOf("passpaper") !== -1 && event.entity.name !== owner){
-                    chestWarnBar(event.entity)
-                    chestWarnBar(event.entity)
-                    chestWarnBar(event.entity)
-                }
-            }
-        }
-    }
-    if(event.entity.typeId === "minecraft:player"){
-    var item = event.entity.getComponent("minecraft:inventory").container.getItem(event.entity.selectedSlot)
-    if(typeof(item) === "object"){
-    if(item.typeId === "minecraft:paper"){
-        var lores = item.getLore()
-        if(lores.indexOf("passpaper") !== -1){
-            add_score(event.entity,item.amount*70,true)
-            event.entity.getComponent("minecraft:inventory").container.clearItem(event.entity.selectedSlot)
-        }
-    }
-    if(ore_list.indexOf(item.typeId) !== -1){
-         cdBar(event.entity)
-    }}}
-})
-
-
-
-
-
-world.events.beforeChat.subscribe(event =>{
-    var player = event.sender
-    event.cancel = true
-    if(command_list.indexOf(event.message.split(" ")[0]) !== -1){
-        switch(event.message.split(" ")[0]){
-            case "tpaccept":
-                if(typeof(event.sender.tpa_player) === "object"){
-                    if(system.currentTick - event.sender.tpa_player.time < 1200){
-                    add_score(event.sender,-100,true)
-                    event.sender.tell("§e正在执行传送")
-                    entity_to_entity(event.sender.tpa_player.player,event.sender)
-                    event.sender.tpa_player = ""
-                    }
-                    else{
-                        event.sender.tell("§e传送过时")
-                    }
-                }
-                else{
-                    event.sender.tell("§e没有tpa请求")
-                }
-                break;
-            case "land":
-                switch(event.message.split(" ")[1]){
-                    case "point":
-                        var location = event.sender.location
-                        player.land_c = new BlockLocation(location.x,location.y,location.z)
-                        player.land_di = player.dimension.id
-                        player.tell("§e选择中心点成功!"+get_block_pos(player.land_s))
-                        break;
-                    case "create":
-                        if(typeof(player.land_di) === "string" && typeof(player.land_s) === "object"&& typeof(player.land_f) === "object"){
-                            
-                        }
-                        else{
-                            player.tell("§e创建失败")
-                        }
-                        break;
-                }
-                break;
-            case "reset":
-                if(is_op(event.sender) === true){
-                    var npc = world.getDimension("minecraft:overworld").spawnEntity("minecraft:npc",new Location(0,-63,0))
-                    npc.addTag("serverInfomation")
-                }
-                break;
-            case "cd":
-            case "菜单":
-                event.sender.runCommandAsync("damage @s 0 entity_attack")
-                cdBar(event.sender)
-                break;
-            case "talk":
-            case "私聊":
-                event.sender.runCommandAsync("damage @s 0 entity_attack")
-                WaittalkBar(event.sender)
-                break;
-            case "tp":
-            case "传送":
-                event.sender.runCommandAsync("damage @s 0 entity_attack")
-                WaitposBar(event.sender)
-                break;
-            case "die":
-            case "死":
-                event.sender.kill()
-                break;
-            case "Fill":
-                if(typeof(event.sender.axe) === "object"){
-                if(event.sender.axe.blocks.length === 2){
-                    var blocks = event.sender.axe.blocks
-                    fill_blocks(event.sender.axe.di,blocks[0].location,blocks[1].location,MinecraftBlockTypes[event.message.split(" ")[1]],event.sender)
-                }
-                else{event.sender.tell("§aFill失败：选定方块不足")}
-                }
-                else{event.sender.tell("§aFill失败：未选择方块")}
-                break;
-        }
-    }
-    else{
-    var message = event.message
-    message = message.replace(/§./g,"")
-    for(var cf=0;cf<emojis.length;cf++){
-        message = message.replaceAll(emojis[cf][1],emojis[cf][0])
-        message = message.replaceAll(emojis[cf][2],emojis[cf][0])
-    }
-    var mode = get_tag(event.sender,"talk_mode,").slice(10)
-    if(mode !== "0" && mode !== ""){
-        var index = ""
-        if(mode === "1"){
-            index = get_team_by_player(event.sender,0)
-        }
-        else{
-            index = get_team_by_player(event.sender,1)
-        }
-        if(index !== ""){
-            var say = "[§e队伍§r]§b" + event.sender.name + "§r >> " + message
-            var players = world.getAllPlayers()
-            for(var cf=0;cf<players.length;cf++){
-                if(teams[index].member.indexOf(players[cf].name) !== -1){
-                   players[cf].runCommandAsync(`tellraw @s {"rawtext":[{"text":"` + say +`"}]}`)
-                }
-            }
-        }
-        else{
-            var say = "[§e无队伍§r]§b" + event.sender.name + "§r >> " + message
-            world.say(say)
-            add_history(say)
-        }
-        
-    }
-    else{
-    add_score(event.sender,2)
-    var say = "[" + event.sender.dimension.name + "]§b" + event.sender.name + "§r >> " + message
-    world.say(say)
-    add_history(say)
-    }}
-})
-
-world.events.playerSpawn.subscribe(event => {
-    if(event.initialSpawn === true){
-    add_history(event.player.name + "(" + String(Math.round(event.player.location.x)) + "，" + String(Math.round(event.player.location.y)) + "，" + String(Math.round(event.player.location.z)) +")(" + event.player.dimension.name + ")进入服务器")
-    event.player.has_show = false
-    event.player.Join = true
-    }
-})
-
-world.events.playerLeave.subscribe(event => {
-    add_history(event.playerName + "离开服务器")
-})
-
-world.events.effectAdd.subscribe(event => {
-    if(event.entity.typeId === "minecraft:player"){
-    if(get_tag(event.entity,"op,"+event.entity.name) === "" && event.entity.Join === true){
-    add_history(event.entity.name+ get_pos(event.entity) + "(" + event.entity.dimension.name  + ")获得" + event.effect.displayName + "药水效果，等级：" + String(event.effect.amplifier + 1) + "，时间：" +  String(event.effect.duration/20))
-    }
-    }
-})
-
-world.events.projectileHit.subscribe(event => {
-    if(event.source instanceof Player && typeof(event.entityHit) == "object"){
-       if(event.projectile.typeId != "minecraft:fishing_hook"){
-        event.source.runCommandAsync("playsound random.orb @s")
-       }
-    }
-})
-
-world.events.weatherChange.subscribe(event =>{
-    var weaText = ""
-    if(event.lightning == true){
-        if(event.raining == true){
-            weaText = "雷雨"
-        }
-        else{
-            weaText = "雷暴"
-        }
-    }
-    else{
-        if(event.raining == true){
-            weaText = "下雨"
-        }
-        else{
-            weaText = "晴天"
-        }
-    }
-    world.say("§e天气转为：" + weaText)
-})
-
-function chestWarnBar(player){
-    var ui = new MessageFormData()
-        .title("请注意")
-        .body("密码箱禁止破坏")
-        .button1("OK")
-        .button2("我知道了")
-    var promise = ui.show(player)
-}
-
-function sureBar(player){
-   var id = system.runSchedule(function(){
-    var ui = new MessageFormData()
-        .title("请注意")
-        .body("此区域禁止破坏方块")
-        .button1("OK")
-        system.clearRunSchedule(id)
-    var promise = ui.show(player)
-    },10)
-}
-
-function banBar(player){
-    var id = system.runSchedule(function(){
-    var ui = new MessageFormData()
-        .title("系统警告")
-        .body("涉嫌恶意行为，你已被封禁")
-        .button1("好的")
-        .button2("退出游戏")
-        system.clearRunSchedule(id)
-    ui.show(player).then(result => {
-        if(result.selection == 0){
-            player.kill()
+function reset_player_follow(player){
+    delete player.follow
+    player.camera.fade({
+        fadeColor : {blue:0,green:0,red:0},
+        fadeTime : {
+            fadeInTime : 0.4,
+            fadeOutTime : 0.4,
+            holdTime : 0.2
         }
     })
-    },5)
+    system.runTimeout(()=>{
+        player.camera.clear()
+    },8)
+    if(is_object(player.info.follow)){
+        var follow = player.info.follow
+        tp_entity(player,get_di(follow.di),follow.x,follow.y,follow.z)
+        set_mode(player,player.info.follow.mode)
+        delete player.info.follow
+        save_player_info(player)
+    }
 }
 
-function warnBar(player){
-    var id = system.runSchedule(function(){
-    var ui = new MessageFormData()
-        .title("系统警告")
-        .body("系统监测到你的恶意行为，给予一次警告！")
-        .button1("好的")
-        .button2("退出游戏")
-        system.clearRunSchedule(id)
-    ui.show(player).then(result => {
-        log("玩家" + player.name + "被警告一次" , false)
-        if(result.selection == 0){
-            player.runCommandAsync("gamemode 0 @s")
-            player.kill()
-        }
+function followBar(player){
+    var text = get_text("follow.tip")
+    var ui = new infoBar()
+    var players = world.getAllPlayers()
+    var names = []
+    for(var i=0;i<players.length;i++){
+        names.push(players[i].name)
+    }
+    ui.title = "跟踪视角"
+    ui.options("index",text + "\n选择玩家",names,0)
+    ui.options("mode","选择跟踪模式",["第一视角","自由视角"],0)
+    ui.show(player,(r)=>{
+        player.camera.fade({
+            fadeColor : {blue:0,green:0,red:0},
+            fadeTime : {
+                fadeInTime : 0.4,
+                fadeOutTime : 0.4,
+                holdTime : 0.2
+            }
+        })
+        system.runTimeout(()=>{
+            var lo = players[r.index].location
+            if(r.mode === 0){
+                tp_entity(player,players[r.index].dimension,lo.x,-10000,lo.z,false)
+            }else{
+                tp_entity(player,players[r.index].dimension,lo.x,-10000+lo.y,lo.z,false)
+            }
+            
+            player.follow = {
+                type:r.mode,
+                player : players[r.index],
+                pos : player.location
+            }
+
+            player.info.follow = {
+                di : player.dimension.id,
+                x:player.location.x,
+                y:player.location.y,
+                z:player.location.z,
+                mode : get_mode(player)
+            }
+            save_player_info(player)
+
+            set_mode(player,3)
+
+            lo.y += 2
+            player.camera.setCamera("usf:example_player_effects",{
+                location : lo,
+                easeOptions : {
+                    easeType : "Linear",
+                    easeTime : 0.1
+                }
+            })
+        },8)
     })
-    },5)
 }
 
-
-function cdBar(player){
-    var id = system.runSchedule(function(){
-    system.clearRunSchedule(id)
-    var text = "\n敬爱的玩家：" + player.name + "\n你的贡献：" + String(get_score(player)) + "\n你的游玩时间：" + String(world.scoreboard.getObjective("play_time").getScore(player.scoreboard))
-    var ui = new ActionFormData()
-        .title("主菜单")
-        .body("(打开主菜单会受到一个假伤害，请忽略)\n欢迎来到服务器" + text)
-        .button("坐标点 / 传送",ui_path + "paste.png")
-        .button("玩家互动",ui_path + "FriendsIcon.png")
-        .button("我的" , ui_path + "permissions_member_star.png")
-        .button("服务器信息" , ui_path + "servers.png")
-        .button("公告",ui_path + "icon_sign.png")
-        .button("自杀" ,ui_path + "strength_effect.png")
-    if(player.hasTag("op,"+player.name) === true){
-    ui = ui.button("管理界面" , ui_path + "op.png")
-    }
-        
-        ui.show(player).then(result => {
-            switch(result.selection){
-                case 0:
-                    posBar(player)
-                    break;
-                case 1:
-                    playerBar(player)
-                    break;
-                case 2:
-                    meBar(player)
-                    break;
-                case 3:
-                    serverBar(player)
-                    break;
-                case 4:
-                    show_board(player)
-                    break;
-                case 5:
-                    player.kill()
-                    break;
-                case 6:
-                    opBar(player)
-                    break;
+function reportBar(player){
+    var ui = new btnBar()
+    ui.title = "管理员日志"
+    ui.body = get_reports()
+    ui.btns = [{
+        text : "添加一行日志",
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                reportBar(player)
             }
-        })
-    },15)
-}
-
-function talkBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    var ui = new ModalFormData()
-        .title("私聊")
-        .dropdown("选择玩家", names ,0)
-        .textField("私聊消息","此处输入消息(话费：5贡献)","")
-        .toggle("要求对方立刻回复",false)
-        
-        ui.show(player).then(result => {
-            add_score(player , -5)
-            var say = result.formValues[1]
-            for(var cf=0;cf<emojis.length;cf++){
-                say = say.replaceAll(emojis[cf][1],emojis[cf][0])
-                say = say.replaceAll(emojis[cf][2],emojis[cf][0])
-            }
-            var text ="[§e私聊§r]§b" + player.name + "§r > §b你§r >>" +String(say)
-            players[result.formValues[0]].runCommandAsync(`tellraw @s {"rawtext":[{"text":"` + text +`"}]}`)
-            if(result.formValues[2] === true){
-                text ="[§e私聊§r]§b" + player.name + "§r >> " +String(say)
-                replyBar(players[result.formValues[0]],player, text)
-            }
-            text ="[§e私聊§r]§b你§r > §b" + players[result.formValues[0]].name +"§r >>" +String(say)
-            player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"` + text +`"}]}`)
-        })
-}
-
-function getKeyBar(player){
-    var ui = new ModalFormData()
-        .title("获取钥匙")
-        .textField("Key名","key的显示名称","密码纸")
-        .textField("密码","此处输入密码(手续费：75贡献*数量)(不能含:)","")
-        .textField("箱子主人","主人名字",player.name)
-        .dropdown("公开",["不公开","公开到我创建的队伍","公开到我加入的队伍"],0)
-        .slider("获取Key数量",1,64,1)
-        
-        ui.show(player).then(result => {
-            add_score(player , -75*result.formValues[4],true)
-            var item = new ItemStack(MinecraftItemTypes.paper,result.formValues[4],0)
-            item.nameTag = result.formValues[0]
-            var lores = ["passpaper" , "password:"+to_md5(result.formValues[1]) , "owner:" + result.formValues[2]]
-            if(result.formValues[3] === 1){
-                var index = get_team_by_player(player,0)
-                if(index !== ""){
-                    lores.push("team:" + teams[index].id)
-                }
-            }
-            if(result.formValues[3] === 2){
-                var index = get_team_by_player(player,1)
-                if(index !== ""){
-                    lores.push("team:" + teams[index].id)
-                }
-            }
-            
-            item.setLore(lores)
-            //world.say(String(item.getLore()))
-            player.dimension.spawnItem(item,new BlockLocation(Math.round(player.location.x), Math.round(player.location.y), Math.round(player.location.z)))
-            player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"已生成Key"}]}`)
-        })
-}
-
-function deleteMemberBar(player,index){
-    var players = teams[index].member
-    var ui = new ModalFormData()
-        .title("删除成员")
-        .dropdown("选择玩家(消耗50贡献)", players ,0)
-        
-        ui.show(player).then(result => {
-            add_score(player , -50 , true)
-            if(teams[index].member[result.formValues[0]] !== teams[index].owner){
-                teams[index].member.splice(result.formValues[0],1)
-                save_team(index)
-            }
-            myTeamBar(player)
-        })
-}
-
-function turnTeamBar(player,index){
-    var players = world.getAllPlayers()
-    var real_players = []
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        if(teams[index].member.indexOf(players[cf].name) === -1){
-        names.push(players[cf].name)
-        real_players.push(players[cf])
-        }
-    }
-    var ui = new ModalFormData()
-        .title("队伍转让")
-        .dropdown("选择玩家(消耗100贡献)", names ,0)
-        
-        ui.show(player).then(result => {
-            add_score(player , -100 , true)
-            if(teams[index].member[result.formValues[0]] !== teams[index].owner){
-                teams[index].owner = names[result.formValues[0]]
-                player.removeTag(get_tag(player,"myTeam,"))
-                real_player.addTag("myTeam," + teams[index].id)
-                save_team(index)
-            }
-            myTeamBar(player)
-        })
-}
-
-function addMemberBar(player,index){
-    var players = world.getAllPlayers()
-    var real_players = []
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        if(teams[index].member.indexOf(players[cf].name) === -1){
-        names.push(players[cf].name)
-        real_players.push(players[cf])
-        }
-    }
-    var ui = new ModalFormData()
-        .title("添加成员")
-        .dropdown("选择玩家(消耗50贡献)", names ,0)
-        
-        ui.show(player).then(result => {
-            addTeamBar(real_players[result.formValues[0]],player,index)
-        })
-}
-
-function replyBar(player,self,last_text){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    var ui = new ModalFormData()
-        .title("私聊回复")
-        .textField(last_text + "\n\n回复消息","此处输入消息(话费：5贡献)","")
-        .toggle("要求对方立刻回复",true)
-        
-        ui.show(player).then(result => {
-            add_score(self , -5)
-            var text ="[§e私聊§r]§b" + self.name + "§r > §b你§r >>" +String(result.formValues[0])
-            player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"` + text +`"}]}`)
-            if(result.formValues[1] === true){
-                text ="[§e私聊§r]§b" + self.name + "§r >> " +String(result.formValues[0])
-                replyBar(self, player , last_text + "\n" + text)
-            }
-            text ="[§e私聊§r]§b你§r > §b" + player.name +"§r >>" +String(result.formValues[0])
-            self.runCommandAsync(`tellraw @s {"rawtext":[{"text":"` + text +`"}]}`)
-        })
-}
-
-function WaittalkBar(player){
-    var id = system.runSchedule(function(){
-        talkBar(player)
-        system.clearRunSchedule(id)
-    },15)
-}
-
-
-function WaitposBar(player){
-    var id = system.runSchedule(function(){
-        posBar(player)
-        system.clearRunSchedule(id)
-    },15)
-}
-
-
-
-function serverBar(player){
-    var serverInfo = "服务器运行时间：" + String(system.currentTick/20) + "s\n服主：EarthDLL\n服主QQ：2562577144\n服务器到期时间：2023.3.12"
-    var selfInfo = "\n玩家名字：" + player.name + "\n是否拥有管理：" + String(player.isOp()) 
-   if(is_op(player) === true){
-   selfInfo += "\nTags：" + String(player.getTags())
-   }
-    var ui = new ActionFormData()
-        .title("服务器信息")
-        .body(serverInfo + selfInfo)
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("意见反馈" , ui_path + "book_edit_default.png")
-        .button("帮助", ui_path + "how_to_play_button_default.png")
-        .button("查看日志记录" , ui_path + "feedIcon.png")
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                ideaBar(player)
-            }
-            if(result.selection === 3){
-                historyCheckBar(player,false)
-            }
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection === 2){
-                helpBar(player)
-            }
-            
-        })
-}
-
-function helpBar(player){
-    var text = "问：如何获取贡献？答：挖掘方块，死亡，聊天等参与服务器的行为都可以获取贡献,注：队伍聊天要消耗贡献,,问：贡献不足会有什么影响？,答：菜单功能会受到限制，但不影响正常游戏"
-    var ui = new ActionFormData()
-        .title("帮助界面")
-        .body(text.replaceAll(",","\n"))
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-        })
-}
-
-function emojiBar(player){
-    var text = "/笑脸  /xl,,/苦脸  /kl,,/死  /si,,/白眼  /by,,/开心  /kx,,/流口水  /lks,,/无语  /wy,,/搞怪  /gg,,/猥琐  /ws,,/哭  /ku,,/冷/leng,,/生气  /sq,,/帅  /shuai,,/害羞  /hx,,/魔鬼  /mg,,/所以呢  /syn,,/笑哭  /xk,,/口罩  /kz,,/亲  /qin,,聊天框输入"
-    var ui = new ActionFormData()
-        .title("emojis")
-        .body(text.replaceAll(",","\n"))
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-        })
-}
-
-
-function myTeamBar(player){
-    var text = ""
-    var index = get_team_by_player(player,0)
-    if(index === ""){
-        text = "您还没有队伍"
-    }
-    else{
-         text += "队伍ID：" + teams[index].id
-         text += "\n队名：" + teams[index].name
-         text += "\n队主：" + teams[index].owner + "\n队员："
-         for(var cf=0;cf<teams[index].member.length;cf++){
-             text += teams[index].member[cf] + "，"
-         }
-    }
-    var ui = new ActionFormData()
-        .title("我的队伍")
-        .body(text)
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        if(index === ""){
-            ui = ui.button("创建我的队伍")
-        }
-        else{
-            ui = ui.button("邀请新成员" , ui_path + "anvil-plus.png")
-            .button("删除成员" , ui_path + "book_trash_default.png")
-            .button("转让队伍")
-            .button("解散队伍")
-        }
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            else{
-                if(index === ""){
-                    if(result.selection === 1){
-                        createTeamBar(player)
-                    }
-                }
-                else{
-                    switch(result.selection){
-                        case 1:
-                            addMemberBar(player,index)
-                            break;
-                        case 2:
-                            deleteMemberBar(player,index)
-                            break;
-                        case 3:
-                            giveTeamBar(player,index)
-                            break;
-                        case 4:
-                            deleteTeamBar(player,index)
-                            break;
-                    }
-                }
-            }
-        })
-}
-
-function myAddTeamBar(player){
-    var text = ""
-    var index = get_team_by_player(player,1)
-    if(index === ""){
-        text = "您还没有加入队伍"
-    }
-    else{
-         text += "队伍ID：" + teams[index].id
-         text += "\n队名：" + teams[index].name
-         text += "\n队主：" + teams[index].owner + "\n队员："
-         for(var cf=0;cf<teams[index].member.length;cf++){
-             text += teams[index].member[cf] + "，"
-         }
-    }
-    var ui = new ActionFormData()
-        .title("我加入的队伍")
-        .body(text)
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        if(index !== ""){
-            ui = ui.button("退出队伍", ui_path + "book_trash_default.png")
-        }
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            else{
-                switch(result.selection){
-                    case 1:
-                        if(player.name !== teams[index].owner){
-                            teams[index].member.splice(teams[index].member.indexOf(player.name),1)
-                            save_team(index)
-                        }
-                        break;
-                }
-                }
-        })
-}
-
-function createTeamBar(player){
-    var ui = new ModalFormData()
-        .title("创建队伍")
-        .textField("队伍名称(创建队伍花费500贡献)","我的队伍","")
-        
-        ui.show(player).then(result => {
-            var team = {
-                name : result.formValues[0].replaceAll("，",""),
-                id : String(team_id),
-                owner : player.name,
-                member : [player.name],
-                tag : "",
-                pos1 : [],
-                pos2 : [],
-                pos3 : [],
-            }
-            add_team(team,player)
-            meBar(player)
-        })
-}
-
-
-function posBar(player){
-    var ui = new ActionFormData()
-        .title("坐标点界面")
-        .body("选择返回坐标\n你的贡献值：" + String(get_score(player)) + "\n返回死亡地点花费200贡献\n传送地点花费100贡献") 
-        .button("设置坐标点" , ui_path + "settings_glyph_color_2x.png")
-        .button("传送到玩家" , ui_path + "icon_multiplayer.png")
-        .button("上一次死亡地点" , ui_path + "wither_effect.png")
-        for(var cf=0;cf<10;cf++){
-        var text = get_tag(player,"pos"+String(cf)+",")
-        if(text === ""){
-            ui = ui.button("坐标点"+String(cf+1)+"(未设置)")
-        }
-        else{
-            var name = ""
-            if(typeof(text.split(",")[5]) === "string"){
-                name = world.getDimension(text.split(",")[5]).name
-            }
-            else{
-                name = "未知"
-            }
-            ui = ui.button("[" + name + "]" + text.split(",")[1])
-            
-        }
-        }
-        if(get_tag(player,"sharePos,") === ""){
-            ui = ui.button("共享点" , ui_path + "share_google.png")
-        }
-        else{
-            var tag = get_tag(player,"sharePos,").split(",")
-            ui = ui.button("共享点 - [" + world.getDimension(tag[5]).name + "]" + tag[1] , ui_path + "share_google.png")
-        }
-        ui = ui.button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("世界共享点" , ui_path + "mashup_world.png")
-        .button("队伍共享点" , ui_path + "dressing_room_skins.png")
-        .button("出生点",ui_path + "heart_new.png")
-        .button("随机传送")
-        ui.show(player).then(result => {
-            if(result.selection >= 3 && result.selection <= 12){
-                var goal_text = get_tag(player,"pos" + String(result.selection-3) + ",")
-                if(goal_text !== ""){
-                    add_score(player,-100,true)
-                    goal_text = goal_text.split(",")
-                    tp_entity(player,get_di_by_id(goal_text[5]), parseInt(goal_text[2]) , parseInt(goal_text[3]), parseInt(goal_text[4]))
-                }
-                else{
-                    posBar(player)
-                }
-            }
-            if(result.selection === 1){
-                tpPlayerBar(player)
-            }
-            if(result.selection === 0){
-                setPosBar(player)
-            }
-            
-            if(result.selection === 2){
-                if(typeof(player.diePos) == "object"){
-                    add_score(player,-200,true)
-                    player.teleport({x:player.diePos[1],y:player.diePos[2],z:player.diePos[3]},world.getDimension(player.diePos[0]),player.rotation.x,player.rotation.y)
-                }
-            }
-            if(result.selection === 13){
-                var thing = get_tag(player,"sharePos,")
-                if(thing === ""){
-                    posBar(player)
-                }
-                else{
-                    thing = thing.split(",")
-                    tp_entity(player,get_di_by_id(goal_text[5]), parseInt(goal_text[2]) , parseInt(goal_text[3]), parseInt(goal_text[4]))
-                }
-            }
-            if(result.selection === 14){
-                cdBar(player)
-            }
-            if(result.selection == 15){
-                worldPosBar(player)
-            }
-            if(result.selection == 16){
-                teamPosBar(player)
-            }
-            if(result.selection == 17){
-                player.teleport(spawn_point,overworld,player.rotation.x,player.rotation.y)
-            }
-            if(result.selection == 18){
-                add_score(player,-20,true)
-                player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e正在执行传送"}]}`)
-                player.runCommandAsync("spreadplayers ~ ~ 10000 50000 @s").then(result =>{
-                    works.push({
-                        "type" : "far_fall",
-                        "player" : player
-                    })
+            ui2.input("text","日志内容","请输入日志","")
+            ui2.show(player,(r)=>{
+                report_warn("text",{
+                    text : r.text
                 })
-            }
-        })
+                reportBar(player)
+            })
+        }
+    },{
+        text : "清理日志",
+        func : ()=>{
+            save_data("reports","")
+            reportBar(player)
+        }
+    }]
+    ui.show(player)
 }
 
-function teamPosBar(player){
-    var pos = []
-    var ui = new ActionFormData()
-        .title("队伍共享点")
-        .body("当前队伍共享点")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        
-    var index = get_team_by_player(player,0)
-    if(index !== ""){
-        if(teams[index].pos1.length === 5){
-            pos.push(teams[index].pos1)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos1[1]).name + "]" + teams[index].pos1[0])
-        }
-        if(teams[index].pos2.length === 5){
-            pos.push(teams[index].pos2)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos2[1]).name + "]" + teams[index].pos2[0])
-        }
-        if(teams[index].pos3.length === 5){
-            pos.push(teams[index].pos3)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos3[1]).name + "]" + teams[index].pos3[0])
+function lockRulesBar(player){
+    var ui = new infoBar()
+    ui.title = "规则锁定"
+    var text = ""
+    if(to_bool(config.rule.able)){
+        var rules = to_object(parse_json(config.rule.data))
+        for(var k in rules){
+            text += `${get_text(k)} : ${rules[k] === true ? "开" : "关"}\n`
         }
     }
-    var index = get_team_by_player(player,1)
-    if(index !== ""){
-        if(teams[index].pos1.length === 5){
-            pos.push(teams[index].pos1)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos1[1]).name + "]" + teams[index].pos1[0])
-        }
-        if(teams[index].pos2.length === 5){
-            pos.push(teams[index].pos2)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos2[1]).name + "]" + teams[index].pos2[0])
-        }
-        if(teams[index].pos3.length === 5){
-            pos.push(teams[index].pos3)
-            ui = ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos3[1]).name + "]" + teams[index].pos3[0])
-        }
+    ui.toggle("able",text + "\n启用规则锁定",to_bool(config.rule.able))
+    ui.cancel = ()=> {
+        opBar(player)
     }
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            else{
-                var thing = pos[result.selection - 1]
-                player.runCommandAsync("tp @s "+ thing[2] + " " + thing[3] + " " + thing[4])
-            }
-        })
-}
-
-function worldPosBar(player){
-    var ui = new ActionFormData()
-        .title("世界共享点")
-        .body("当前世界共享点(需要玩家在线)")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        
-    var shares = get_shares()
-    for(var cf=0; cf<shares.length; cf++){
-        var things = shares[cf].split(",")
-        ui = ui.button(things[0] + " - [" + world.getDimension(things[6]).name + "]" + things[2])
-    }
-    
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            else{
-                var thing = shares[result.selection - 1].split(",")
-                player.runCommandAsync("tp @s "+ thing[3] + " " + thing[4] + " " + thing[5])
-            }
-        })
+    ui.show(player,(r)=>{
+        config.rule.able = r.able
+        if(r.able){
+            config.rule.data = to_json({
+                "mobGriefing" : world.gameRules.mobGriefing,
+                "keepInventory" : world.gameRules.keepInventory,
+                "tntExplodes" : world.gameRules.tntExplodes,
+                "showCoordinates" :world.gameRules.showCoordinates,
+                "pvp" :world.gameRules.pvp,
+                "doMobSpawning" :world.gameRules.doMobSpawning,
+                "doImmediateRespawn" :world.gameRules.doImmediateRespawn,
+                "commandBlocksEnabled" :world.gameRules.commandBlocksEnabled,
+            })
+        }
+        save_config()
+        opBar(player)
+    })
 }
 
 function opBar(player){
-    var ui = new ActionFormData()
-        .title("管理员界面")
-        .body("选择设置")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("查看意见反馈", ui_path + "comment.png")
-        .button("查看警告日志" , ui_path + "WarningGlyph.png")
-        .button("贡献值设置" , ui_path + "settings_glyph_color_2x.png")
-        .button("公告设置" , ui_path + "book_edit_default.png")
-        .button("查看玩家日志" , ui_path + "feedIcon.png")
-        .button("封禁列表管理" , "textures/blocks/barrier.png")
-        .button("查看所有队伍" , ui_path + "dressing_room_skins.png")
-        .button("工作模式" , ui_path + "anvil_icon.png")
-        .button("玩家物品栏" , ui_path + "selected_hotbar_slot.png")
-        .button("运行命令")
-        .button("插件设置")
-        
-        if(is_op(player) === true){
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                ideaCheckBar(player)
-            }
-            if(result.selection === 2){
-                logCheckBar(player)
-            }
-            
-            if(result.selection === 5){
-                historyCheckBar(player,true)
-            }
-            if(result.selection === 7){
-                teamCheckBar(player)
-            }
-            if(result.selection === 8){
-                opWorkBar(player)
-            }
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection === 9){
-                inCheckBar(player)
-            }
-            if(result.selection === 10){
-                runCommandBar(player)
-            }
-            if(result.selection === 11){
-                settingBar(player)
-            }
-            if(result.selection === 6){
-                banOpBar(player)
-            }
-            if(result.selection === 4){
-                opBoardBar(player)
-            }
-            if(result.selection === 3){
-                setScoreBar(player)
-            }
-        })
-        }
-}
-
-function setScoreBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name + " 贡献值：" + String(get_score(players[cf])))
+    if(is_object(player.follow)){
+        reset_player_follow(player)
     }
-    var ui = new ModalFormData()
-        .title("贡献值设置界面")
-        .dropdown("选择玩家", names ,0)
-        .dropdown("操作", ["添加贡献值","设置贡献值"] ,0)
-        .textField("值","键入值","")
-        
-        ui.show(player).then(result => {
-            switch(result.formValues[1]){
-                case 0:
-                    add_score(players[result.formValues[0]],parseInt(result.formValues[2]),true)
-                    break;
-                case 1:
-                    set_score(players[result.formValues[0]],parseInt(result.formValues[2]),true)
-                    break;
-            
-            }
-            cdBar(player)
-        })
-}
-
-function runCommandBar(player){
-    var ui = new ModalFormData()
-        .title("运行命令")
-        .dropdown("执行位置", ["主世界","下界","末地","我的位置"] ,3)
-        .textField("命令\n§c不需要打/","键入命令","")
-        
-        ui.show(player).then(result => {
-            var di = overworld
-            switch(result.formValues[0]){
-                case 1:
-                    di = nether
-                    break;
-                case 2:
-                    di = end
-                    break;
-                case 3:
-                    di = player
-            }
-            di.runCommandAsync(result.formValues[1]).then(result=>{player.tell("§e命令执行成功")})
-            .catch(err=>{player.tell("§e命令执行失败\n")})
-            opBar(player)
-        })
-}
-
-
-
-function ideaCheckBar(player){
-    var ui = new ActionFormData()
-        .title("意见反馈收集界面")
-        .body(String(ideas).replaceAll(",","\n"))
-        .button("清空")
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                ideas = []
-            }
-            if(result.selection === 1){
-                opBar(player)
-            }
-        })
-}
-
-function historyCheckBar(player,can_clear = false,page = 0){
-    var ui = new ActionFormData()
-        .title("玩家历史记录界面 - 第"+String(page+1) + "页")
-        .body(String(history.slice(page*100 , page*100 + 99)).replaceAll(",","\n"))
-        
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        .button("查找" ,ui_path + "magnifyingGlass.png")
-        .button("上一页")
-        .button("下一页")
-        if(can_clear === true){
-        ui = ui.button("清空")
-        }
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection === 1){
-                historyFindBar(player)
-            }
-            if(result.selection === 2 && page > 0){
-                historyCheckBar(player,can_clear,page - 1)
-            }
-            if(result.selection === 3){
-                historyCheckBar(player,can_clear,page + 1)
-            }
-            if(result.selection === 4){
-                history = []
-            }
-        })
-}
-
-function teamCheckBar(player){
-    var text = ""
-    for(var cf=0;cf<teams.length;cf++){
-        text += "ID：" + teams[cf].id
-        text += "\n队伍名称：" + teams[cf].name
-        text += "\n队主：" + teams[cf].owner
-        for(var cf1=0;cf1<teams[cf].member.length;cf1++){
-            text += "\n队员：" + teams[cf].member[cf1]
-        }
-        text += "\n"
+    if(get_op_level(player) === 0){
+        return
     }
-    var ui = new ActionFormData()
-        .title("玩家队伍信息")
-        .body(text)
-        
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                opBar(player)
+    var ui = new btnBar()
+    ui.busy = null
+    ui.title = "管理界面"
+    ui.body = "欢迎来到管理界面"
+    ui.btns = [
+        {
+            text : "锁定游戏规则",
+            icon : ui_icon.lock,
+            func : ()=>{
+                lockRulesBar(player)
             }
-        })
-}
-
-function meBar(player){
-    var text = "玩家名称：" + player.name + "\n我的贡献：" + String(get_score(player))
-    var ui = new ActionFormData()
-        .title("我的")
-        .body(text)
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("我的队伍" , ui_path + "dressing_room_customization.png")
-        .button("我所在的队伍" , ui_path + "dressing_room_skins.png")
-        .button("获取箱子钥匙" , ui_path + "accessibility_glyph_color.png")
-
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection === 3){
-                getKeyBar(player)
-            }
-            if(result.selection === 1){
-                myTeamBar(player)
-            }
-            if(result.selection === 2){
-                myAddTeamBar(player)
-            }
-        })
-}
-
-function opWorkBar(player){
-    var ui = new ActionFormData()
-        .title("管理员工作模式")
-        .body("打开工作模式后，可无视任何限制(例如密码箱)。")
-        if(player.hasTag("op-work") === false){
-        ui = ui.button("打开工作模式")
-        }
-        else{
-        ui = ui.button("关闭工作模式")
-        }
-        ui = ui.button("返回上一级")
-        if(player.hasTag("op-work") === true){
-    ui = ui.button("切换观察者模式")
-        .button("切换生存模式")
-        .button("传送到玩家")
-        .button("获取工作效果(隐身+夜视)")
-        if(player.hasTag("script-check") === true){
-            ui = ui.button("关闭脚本监视")
-        }
-        else{
-            ui = ui.button("打开脚本监视")
-        }
-        }
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                if(player.hasTag("op-work")){
-                    player.removeTag("op-work")
-                    player.removeTag("script-check")
-                    player.runCommandAsync(`gamemode 0 @s`)
-                    player.runCommandAsync(`effect @s clear`)
-                }
-                else{
-                    player.addTag("op-work")
-                }
-                opWorkBar(player)
-            }
-            if(result.selection === 2){
-                opWorkBar(player)
-                player.runCommandAsync(`gamemode spectator @s`)
-            }
-            if(result.selection === 1){
-                opBar(player)
-            }
-            if(result.selection === 3){
-                opWorkBar(player)
-                player.runCommandAsync(`gamemode 0 @s`)
-            }
-            if(result.selection === 4){
-                opTpBar(player)
-            }
-            if(result.selection === 5){
-                opWorkBar(player)
-                player.runCommandAsync(`effect @s invisibility 1000 1 true`)
-                player.runCommandAsync(`effect @s night_vision 1000 1 true`)
-            }
-             if(result.selection === 6){
-                if(player.hasTag("script-check")){
-                    player.removeTag("script-check")
-                }
-                else{
-                    player.addTag("script-check")
-                }
-                opWorkBar(player)
-            }
-        })
-}
-
-
-function settingBar(player){
-    var ui = new ActionFormData()
-        .title("插件设置")
-        .body("插件功能管理")
-        if(settings.kick === false){
-        ui = ui.button("反作弊自动踢人 - 关")
-        }
-        else{
-        ui = ui.button("反作弊自动踢人 - 开")
-        }
-        ui = ui.button("信息转移(0.0.3及以下)")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                if(settings.kick === false){
-                    settings.kick = true
-                }
-                else{
-                    settings.kick = false
-                }
-                settingBar(player)
-            }
-            
-            
-            save_settings()
-        })
-}
-
-function setPosBar(player){
-    var ui = new ActionFormData()
-        .title("坐标点设置")
-        .body("选择操作\n删除坐标点手续费：20贡献")
-        .button("设置坐标点信息", ui_path + "settings_glyph_color_2x.png")
-        .button("删除坐标点" , ui_path + "redX1.png")
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                choosePosBar(player,0)
-            }
-            if(result.selection === 1){
-                choosePosBar(player,1)
-            }
-            if(result.selection === 2){
-                posBar(player)
-            }
-        })
-}
-
-
-function choosePosBar(player,mode){
-    var ui = new ActionFormData()
-        .title("坐标点设置")
-        .body("选择要操作的坐标点")
-    for(var cf=0;cf<10;cf++){
-        var text = get_tag(player,"pos"+String(cf)+",")
-        if(text === ""){
-            ui = ui.button("坐标点"+String(cf+1)+"(未设置)")
-        }
-        else{
-            var name = ""
-            if(typeof(text.split(",")[5]) === "string"){
-                name = world.getDimension(text.split(",")[5]).name
-            }
-            else{
-                name = "未知"
-            }
-            ui = ui.button("[" + name + "]" + text.split(",")[1])
-        }
-    }
-    var share = get_tag(player,"sharePos,")
-    if(share === ""){
-        ui = ui.button("共享点(未设置)")
-    }
-    else{
-        ui = ui.button("共享点 - " + share.split(",")[1])
-    }
-        
-    ui = ui.button("队伍共享点")
-    ui = ui.button("取消" , ui_path + "redX1.png")
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection > 9){
-                if(result.selection === 12){
-                    posBar(player)
-                }
-                if(result.selection === 11){
-                    chooseTeamPosBar(player)
-                }
-                if(result.selection === 10){
-                    if(mode === 1){
-                        var goal_text = get_tag(player,"sharePos,")
-                        if(goal_text !== ""){
-                            player.removeTag(goal_text)
-                            add_score(player,-20 ,true)
+        },
+        {
+            text : "聊天消息过滤词",
+            func : ()=>{
+                confirm(player,[
+                    "提醒：每行输入一个白名单词，若聊天信息中包含任意一个词，usf将不处理此消息，例如兼容其他模组的指令系统",
+                    "点击下方确认按钮前往编辑"],(r)=>{
+                        if(r){
+                            var editor = new arrayEditor()
+                            editor.back = ()=>{
+                                save_data("white_words",to_json(white_words))
+                                opBar(player)
+                            }
+                            editor.edit(player,white_words)
+                        }else{
+                            opBar(player)
                         }
-                        posBar(player)
+                    })
+            },
+            icon : ui_icon.water
+        },
+        {
+        text : "封禁实体",
+        icon : ui_icon.rubbish,
+        func : ()=>{
+            confirm(player,[
+                "提醒：每行输入一个实体id(要加minecraft前缀)",
+                "点击下方确认按钮前往编辑"],(r)=>{
+                    if(r){
+                        var editor = new arrayEditor()
+                        editor.back = ()=>{
+                            save_config()
+                            
+                            var unable = []
+                            for(var id of config.ban_entity){
+                                if(un(mc.EntityTypes.get(id))){
+                                    unable.push(id)
+                                }
+                            }
+                            
+                            if(unable.length > 0){
+                            var text = "编辑已完成，但以下ID可能无效\n" + array2string(unable)
+                            tip(player,text,()=>{
+                                opBar(player)
+                            })
+                            }else{
+                                opBar(player)
+                            }
+                            
+                        }
+                        editor.edit(player,config.ban_entity)
+                    }else{
+                        opBar(player)
                     }
-                else{
-                    changePosBar(player,result.selection)
-                }
-                }
-            }
-            else{
-                if(mode === 1){
-                    
-                    var goal_text = get_tag(player,"pos"+String(result.selection)+",")
-                    if(goal_text !== ""){
-                    player.removeTag(goal_text)
-                    add_score(player,-20,true)
+                })
+        }
+    },{
+        text : "封禁掉落物",
+        icon : ui_icon.rubbish,
+        func : ()=>{
+            confirm(player,[
+                "提醒：每行输入一个物品id(要加minecraft前缀)",
+                "点击下方确认按钮前往编辑"],(r)=>{
+                    if(r){
+                        var editor = new arrayEditor()
+                        editor.back = ()=>{
+                            save_config()
+                            
+                            var unable = []
+                            for(var id of config.ban_item){
+                                if(un(mc.ItemTypes.get(id))){
+                                    unable.push(id)
+                                }
+                            }
+                            
+                            if(unable.length > 0){
+                            var text = "编辑已完成，但以下ID可能无效\n" + array2string(unable)
+                            tip(player,text,()=>{
+                                opBar(player)
+                            })
+                            }else{
+                                opBar(player)
+                            }
+                            
+                        }
+                        editor.edit(player,config.ban_item)
+                    }else{
+                        opBar(player)
                     }
-                    posBar(player)
-                }
-                else{
-                    changePosBar(player,result.selection)
-                }
-            }
-        })
-}
-
-function chooseTeamPosBar(player){
-    var team_index = []
-    var pos_number = []
-    var ui = new ActionFormData()
-        .title("坐标点设置")
-        .body("选择要操作的坐标点")
-        .button("返回上一级")
-        
-    var index = get_team_by_player(player,0)
-    if(index !== ""){
-        team_index.push(index)
-        if(teams[index].pos1.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos1[1]).name + "]" + teams[index].pos1[0])
+                })
         }
-        else{
-            ui.button(teams[index].name + " - 未设置")
+    },{
+        text : "性能检测",
+        icon : ui_icon.info,
+        func : ()=>{
+            usfTickCheck(player)
         }
-        if(teams[index].pos2.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos2[1]).name + "]" + teams[index].pos2[0])
-        }
-        else{
-            ui.button(teams[index].name + " - 未设置")
-        }
-        if(teams[index].pos3.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos3[1]).name + "]" + teams[index].pos3[0])
-        }
-        else{
-            ui.button(teams[index].name + " - 未设置")
-        }
-    }
-    
-    index = get_team_by_player(player,1)
-    if(index !== ""){
-        team_index.push(index)
-        if(teams[index].pos1.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos1[1]).name + "]" + teams[index].pos1[0])
-        }
-        else{
-            ui.button(teams[index].name + " - 未设置")
-        }
-        if(teams[index].pos2.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos2[1]).name + "]" + teams[index].pos2[0])
-        }
-        else{
-            ui.button(teams[index].name + " - 未设置")
-        }
-        if(teams[index].pos3.length === 5){
-            ui.button(teams[index].name + " - [" + world.getDimension(teams[index].pos3[1]).name + "]" + teams[index].pos3[0])
-        }
-        else{
-            ui.button(teams[index].name + " - 未设置")
-        }
-    }
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                posBar(player)
-            }
-            else{
-                var goal = result.selection -1
-                var index = ""
-                if(goal < 3){
-                    index = team_index[0]
-                }
-                else{
-                    index = team_index[1]
-                }
-                setTeamPosBar(player,index,goal%3)
-            
-            }
-        })
-}
-
-function changePosBar(player,index){
-    var name = get_tag(player,"pos" + String(index) + ",")
-    if (name !== ""){
-        name = name.split(",")[1]
-    }
-    
-        var real_pos = [""]
-        var poses = ["当前位置"]
-        for(var cf=0; cf<10;cf++){
-            var text = get_tag(player,"pos"+String(cf)+",")
-            if(text !== ""){
-                var d_name = ""
-                if(typeof(text.split(",")[5]) === "string"){
-                    d_name = world.getDimension(text.split(",")[5]).name
-                }
-                else{
-                d_name = "未知"
-                }
-            poses.push("[" + d_name + "]" + text.split(",")[1])
-            real_pos.push(text)
-        }
-        }
-        
-        var ui = new ModalFormData()
-        .title("设置坐标点")
-        .textField("坐标名称(设置手续费：20贡献)","坐标点"+String(index+1),name)
-        .dropdown("选择坐标位置", poses ,0)
-        
-        
-        ui.show(player).then(result => {
-            if(index !== 10){
-            var set = get_tag(player,"pos" + String(index) + ",")
-            if(set !== ""){
-                player.removeTag(set)
-            }
-            add_score(player,-20,true)
-            if(result.formValues[1] === 0){
-                player.addTag("pos" + String(index) + "," + result.formValues[0].replaceAll(",","") + "," + String(player.location.x) + "," + String(player.location.y) + "," + String(player.location.z) + "," + player.dimension.id)
-            }
-            else{
-                var thing = real_pos[result.formValues[1]].split(",")
-                player.addTag("pos" + String(index) + "," + result.formValues[0].replaceAll(",","") + "," + thing[2] + "," + thing[3]+ "," + thing[4] + "," + player.dimension.id)
-            }
-            posBar(player)
-            }
-            else{
-                var set = get_tag(player,"sharePos," + String(index) + ",")
-                if(set !== ""){
-                    player.removeTag(set)
-                }
-                add_score(player,-20,true)
-                if(result.formValues[1] === 0){
-                    player.addTag("sharePos," + result.formValues[0].replaceAll(",","") + "," + String(player.location.x) + "," + String(player.location.y) + "," + String(player.location.z) + "," + player.dimension.id)
-                }
-                else{
-                    var thing = real_pos[result.formValues[1]].split(",")
-                    player.addTag("sharePos," + result.formValues[0].replaceAll(",","") + "," + thing[2] + "," + thing[3] + "," + thing[4] + "," + player.dimension.id)
-                }
-                
-                posBar(player)
-                
-            }
-        })
-}
-
-function setTeamPosBar(player,index,pos){
-    var name = ""
-    switch(pos){
-        case 0:
-            if(teams[index].pos1.length === 5){
-                name = teams[index].pos1[0];
-            }
-            break;
-        case 1:
-            if(teams[index].pos2.length === 5){
-                name = teams[index].pos2[0];
-            }
-            break;
-        case 2:
-            if(teams[index].pos3.length === 5){
-                name = teams[index].pos3[0];
-            }
-            break;
-    }
-        
-        var real_pos = [""]
-        var poses = ["当前位置"]
-        for(var cf=0; cf<10;cf++){
-            var text = get_tag(player,"pos"+String(cf)+",")
-            if(text !== ""){
-                var d_name = ""
-                if(typeof(text.split(",")[5]) === "string"){
-                    d_name = world.getDimension(text.split(",")[5]).name
-                }
-                else{
-                d_name = "未知"
-                }
-            poses.push("[" + d_name + "]" + text.split(",")[1])
-            real_pos.push(text)
-        }
-        }
-        
-        var ui = new ModalFormData()
-        .title("设置坐标点")
-        .textField("坐标名称(设置手续费：20贡献)","队伍坐标点",name)
-        .dropdown("选择坐标位置", poses ,0)
-        
-        
-        ui.show(player).then(result => {
-            add_score(player,-20,true)
-            var pos_text = [  ]
-            if(result.formValues[1] === 0){
-                pos_text = [result.formValues[0].replaceAll(",","") , player.dimension.id , String(player.location.x) , String(player.location.y) , String(player.location.z)]
-            }
-            else{
-                var thing = real_pos[result.formValues[1]].split(",")
-                pos_text = [result.formValues[0].replaceAll(",","") , thing[5] , thing[2] , thing[3] , thing[4]]
-            }
-            switch(pos){
-                case 0:
-                    teams[index].pos1 = pos_text
-                    break;
-                case 1:
-                    teams[index].pos2 = pos_text
-                    break;
-                case 2:
-                    teams[index].pos3 = pos_text
-                    break;
-            }
-            save_team(index)
-            posBar(player)
-        })
-}
-
-
-function logCheckBar(player){
-    var ui = new ActionFormData()
-        .title("日志界面")
-        .body(String(logs).replaceAll(",","\n"))
-        .button("清空")
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                logs = []
-            }
-            if(result.selection === 1){
-                opBar(player)
-            }
-        })
-}
-
-function historyResultBar(player,text){
-    var results = []
-    for(var cf=0; cf<history.length; cf++){
-    if(history[cf].indexOf(text) !== -1){
-            results.push(history[cf])
-        }
-    }
-    var ui = new ActionFormData()
-        .title("玩家日志结果")
-        .body(String(results).replaceAll(",","\n"))
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                logCheckBar(player)
-            }
-        })
-}
-
-function banOpBar(player){
-    var ui = new ActionFormData()
-        .title("封禁列表管理")
-        .body("封禁列表管理")
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        .button("封禁在线玩家")
-        .button("封禁离线玩家")
-        .button("解封玩家")
-        .button("查看封禁玩家列表")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                opBar(player)
-            }
-            if(result.selection === 1){
-                chooseBanBar(player)
-            }
-            if(result.selection === 2){
-                banSetBar(player,0)
-            }
-            if(result.selection === 3){
-                banSetBar(player,1)
-            }
-            if(result.selection === 4){
-                banListBar(player)
-            }
-        })
-}
-
-function banListBar(player){
-    var text = ""
-    for(var cf of ban_list){
-        text += cf + "\n"
-    }
-    var ui = new ActionFormData()
-        .title("封禁列表")
-        .body("封禁列表：\n(共" + String(ban_list.length) + "人)\n" + text)
-        .button("返回上一级" , ui_path + "arrow_dark_left_stretch.png")
-        
-        ui.show(player).then(result => {
-            banOpBar(player)
-        })
-}
-
-function tradeBar(player){
-    var ui = new ActionFormData()
-        .title("交易界面")
-        .body("和玩家们一起交易吧~")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("添加交易", ui_path + "book_addtextpage_default.png")
-        
-        for(var cf=0;cf<trades.length;cf++){
-            var things = trades[cf].split("，")
-            var mode = ""
-            switch(things[1]){
-                case "0":
-                    mode = "卖出"
-                    ui = ui.button(mode + " - " + things[3] + "*" + things[4])
-                    break;
-                case "1":
-                    mode = "交换"
-                    ui = ui.button(mode + " - " + things[3] + "*" + things[5] + "=" + things[4] + "*"+things[6])
-                    break;
-                case "2":
-                    mode = "回收"
-                    ui = ui.button(mode + " - " + things[3] + "*" + things[4])
-                    break;
+    },{
+        text : "管理模式 - " + ((player.info.manager === true)? "开" : "关" + "\n可破坏领地、在领地界面做修改"),
+        icon : ui_icon.manager,
+        func : ()=>{
+            if(player.info.manager === false || un(player.info.manager)){
+                player.info.manager = true
+                save_player_info(player)
+            }else{
+                player.info.manager = false
+                save_player_info(player)
             }
         }
-        
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                addTradeBar(player)
-            }
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection > 1){
-                tradeInfoBar(player,trades[result.selection-2])
-            }
-        })
-}
-
-function addTradeBar(player){
-    var ui = new ActionFormData()
-        .title("添加交易界面")
-        .body("添加你的交易吧~")
-        .button("取消" , ui_path + "arrow_dark_left_stretch.png")
-        .button("卖出")
-        .button("交换")
-        .button("回收")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                tradeBar(player)
-            }
-            if(result.selection > 0){
-                setTradeBar(player,result.selection-1)
-            }
-        })
-}
-
-function tradeInfoBar(player,text){
-    var things = text.split("，")
-    var show = ""
-        switch(things[1]){
-            case "0":
-                show = "卖出\n"
-                show += "发起人：" + things[2] + "\n\n"
-                show += "卖出物品：" + things[3] + "\n卖出数量：" + things[4] + "\n价格/每个物品：" + things[5] +"\n交易地点：" + things[6] 
-                break;
-            case "1":
-                show = "交换\n"
-                show += "发起人：" + things[2] + "\n\n"
-                show += "卖家：\n卖出物品：" + things[3] + "\n卖出数量：" + things[5] + "\n\n买家\n交换物品：" + things[4] +"\n交换数量：" + things[6] +"\n\n交换地点：" + things[7]
-                break;
-            case "2":
-                show = "回收\n"
-                show += "发起人：" + things[2] + "\n\n"
-                show += "回收物品：" + things[3] + "\n回收数量：" + things[4] + "\n价格/每个物品：" + things[5] +"\n交易地点：" + things[6] 
-                break;
-        }
-    var ui = new ActionFormData()
-        .title("交易详情")
-        .body(show)
-        .button("返回上一页" , ui_path + "arrow_dark_left_stretch.png")
-        if(player.name === things[2]){
-            ui = ui.button("删除交易信息")
-        }
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                tradeBar(player)
-            }
-            if(result.selection === 1){
-                delete_trades(text)
-                tradeBar(player)
-            }
-        })
-}
-
-
-function setTradeBar(player,mode){
-    var ui = new ModalFormData()
-        .title("设置交易内容")
-        if(mode === 0){
-        ui = ui.textField("卖出物品","在此输入","绿帽子")
-        .textField("卖出数量","在此输入","64")
-        .textField("价格/每个物品","在此输入","5绿宝石")
-        .textField("交易地点","在此输入","出生点")
-        }
-        if(mode === 1){
-        ui = ui.textField("卖方物品","在此输入","绿帽子")
-        .textField("买方物品","在此输入","红帽子")
-        .textField("卖方数量","在此输入","1")
-        .textField("买方数量","在此输入","2")
-        .textField("交易地点","在此输入","出生点")
-        }
-        if(mode === 2){
-        ui = ui.textField("回收物品","在此输入","绿帽子")
-        .textField("回收数量","在此输入","114514")
-        .textField("回收价格","在此输入","64绿宝石/组")
-        .textField("交易地点","在此输入","出生点")
-        }
-        ui.show(player).then(result => {
-            var text = "trade，"
-            text += String(mode) + "，" + player.name + "，"
-            switch(mode){
-                case 0:
-                case 2:
-                    text += result.formValues[0] + "，" +result.formValues[1] + "，" +result.formValues[2] + "，" +result.formValues[3]
-                    break;
-                case 1:
-                    text += result.formValues[0] + "，" +result.formValues[1] + "，" +result.formValues[2] + "，" +result.formValues[3] +"，" + result.formValues[4]
-                    break;
-            }
-            save_trades(text)
-            tradeBar(player)
-        })
-}
-
-
-
-function playerBar(player){
-    var talk_mode = get_tag(player,"talk_mode,").slice(10)
-    var text = "公共聊天"
-    if(talk_mode == "1"){
-        text = "队伍聊天(我的队伍)"
-    }
-    if(talk_mode == "2"){
-        text = "队伍聊天(加入的队伍)"
-    }
-    
-    var ui = new ActionFormData()
-        .title("玩家互动界面")
-        .body("来和玩家们一起互动吧")
-        .button("返回主菜单" , ui_path + "arrow_dark_left_stretch.png")
-        .button("私聊玩家", ui_path + "mute_off.png")
-        .button("聊天设置(当前：" + text + ")" , ui_path + "settings_glyph_color_2x.png")
-        .button("交易" , ui_path + "icon_book_writable.png")
-        .button("emoji大全" , ui_path + "regeneration_effect.png")
-
-        
-        
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                talkBar(player)
-            }
-            if(result.selection === 0){
-                cdBar(player)
-            }
-            if(result.selection === 4){
-                emojiBar(player)
-            }
-            if(result.selection === 2){
-                player.removeTag("talk_mode," + String(talk_mode))
-                if(talk_mode === ""){
-                    player.addTag("talk_mode,1")
-                }
-                switch(talk_mode){
-                case "0" :
-                    player.addTag("talk_mode,1")
-                    break;
-                case "1":
-                    player.addTag("talk_mode,2")
-                    break;
-                case "2":
-                    player.addTag("talk_mode,0")
-                    break;
-                }
-                playerBar(player)
-            }
-            if(result.selection === 3){
-                tradeBar(player)
-            }
-        })
-}
-
-function ideaBar(player){
-    var ui = new ModalFormData()
-        .title("服务器意见反馈")
-        .textField("意见反馈","在此输入","")
-        
-        ui.show(player).then(result => {
-            add_score(player,20)
-            player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e意见反馈已收到，奖励20贡献"}]}`)
-            ideas.push(player.name + " >> " + result.formValues[0])
-            cdBar(player)
-        })
-}
-
-function banSetBar(player,mode){
-    var ui = new ModalFormData()
-        if(mode === 0){
-        ui = ui.title("封禁玩家")
-        }
-        else{
-            ui = ui.title("解封玩家")
-        }
-        ui = ui.textField("玩家名","在此输入","")
-        
-        ui.show(player).then(result => {
-            if(mode === 0){
-                ban_list.push(result.formValues[0])
-                save_ban_list()
-            }
-            else{
-                if(ban_list.indexOf(result.formValues[0]) !== -1){
-                    ban_list.splice(ban_list.indexOf(result.formValues[0]),1)
-                    save_ban_list()
-                }
-            }
-            banOpBar(player)
-        })
-}
-
-function chestKeyBar(player,password,location,owner){
-    var ui = new ModalFormData()
-        .title("密码验证")
-        .textField("箱子启用了密码验证\n箱主："+owner,"在此输入密码","")
-        
-        ui.show(player).then(result => {
-            if(to_md5(result.formValues[0]) === password){
-                player.last_chest = location
-                player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e密码正确"}]}`)
-            }
-            else{
-                player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e密码错误"}]}`)
-                add_history(player.name + get_pos(player) + "(" + player.dimension.name + ")" + "输入错误密码箱密码")
-            }
-        })
-}
-
-function chooseBanBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    
-    var ui = new ModalFormData()
-        .title("封禁玩家")
-        .dropdown("选择玩家", names ,0)
-        
-        ui.show(player).then(result => {
-        kick(players[result.formValues[0]],"管理员踢出")
-        })
-}
-
-
-function historyFindBar(player){
-    var ui = new ModalFormData()
-        .title("查找有关日志")
-        .textField("查找内容","在此输入内容","")
-        
-        ui.show(player).then(result => {
-            
-            historyResultBar(player, result.formValues[0])
-        })
-}
-
-function tpPlayerBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    var ui = new ModalFormData()
-        .title("传送至玩家")
-        .dropdown("选择玩家", names ,0)
-        .textField("传送备注","此处输入消息(消耗100贡献)","")
-        .toggle("使用tpa弹窗",false)
-        
-        ui.show(player).then(result => {
-            if(result.formValues[2] === true){
-            tpaBar(players[result.formValues[0]],player,result.formValues[1])
-            }
-            players[result.formValues[0]].tell("§b玩家" + players[result.formValues[0]].name + "请求传送至您的位置\n对方备注：" + result.formValues[1] + "\n§b1分钟内输入tpaccept即可传送")
-            players[result.formValues[0]].tpa_player = {
-                "player":player,
-                "time":system.currentTick
-            }
-        })
-}
-
-function opTpBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    var ui = new ModalFormData()
-        .title("传送至玩家(管理模式)")
-        .dropdown("选择玩家", names ,0)
-        
-        ui.show(player).then(result => {
-            var loc = players[result.formValues[0]].location
-            player.runCommandAsync(`tp @s ` + String(loc.x) + " " + String(loc.y) + " " + String(loc.z))
-        })
-}
-
-function inCheckBar(player){
-    var players = world.getAllPlayers()
-    var names = []
-    for(var cf=0; cf < players.length; cf++){
-        names.push(players[cf].name)
-    }
-    var ui = new ModalFormData()
-        .title("查看玩家物品栏")
-        .dropdown("选择玩家", names ,0)
-        
-        ui.show(player).then(result => {
-            inLookBar(player,players[result.formValues[0]])
-        })
-}
-
-function sayBoardBar(player){
-    var ui = new ModalFormData()
-        .title("留言板")
-        .textField("留言板","在此写下留言","")
-        
-        ui.show(player).then(result => {
-            add_score(player,10 , true)
-            player.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e留言成功，获得10贡献"}]}`)
-            boards.push(player.name + " >> " + result.formValues[0])
-            cdBar(player)
-        })
-}
-
-function tpaBar(target,player,tpText){
-    var id = system.runSchedule(function(){
-    target.runCommandAsync("damage @s 0 entity_attack")
-    var ui = new MessageFormData()
-        .title("TPA传送请求")
-        .body("(打开该菜单会受到一个假伤害，请忽略)\n玩家" + player.name + "请求传送至您的位置\n对方备注：" + tpText + "\n请通过下方按钮决定")
-        .button1("同意")
-        .button2("拒绝")
-        system.clearRunSchedule(id)
-        ui.show(target).then(result => {
-            switch(result.selection){
-                case 1:
-                    add_score(player,-100,true)
-                    player.tell("§e正在执行传送")
-                    player.tpa_player = ""
-                    entity_to_entity(player,target)
-                    break;
-                case 0:
-                    player.tpa_player = ""
-                    player.tell("§e对方拒绝了你的请求")
-                    break;
-            }
-        })
-    },10)
-
-}
-
-function addTeamBar(target,self,index){
-    var id = system.runSchedule(function(){
-    target.runCommandAsync("damage @s 0 entity_attack")
-    var ui = new MessageFormData()
-        .title("队伍邀请请求")
-        .body("(打开该菜单会受到一个假伤害，请忽略)\n玩家" + self.name + "邀请您加入TA的队伍\n请通过下方按钮决定")
-        .button1("同意")
-        .button2("拒绝")
-        system.clearRunSchedule(id)
-        ui.show(target).then(result => {
-            switch(result.selection){
-                case 1:
-                if(get_team_by_player(target,1) === ""){
-                    teams[index].member.push(target.name)
-                    target.addTag("addTeam," + String(teams[index].id))
-                    save_team(index)
-                    self.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e对方已加入你的队伍"}]}`)
-                    target.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e你已加入对方的队伍"}]}`)
-                    
-                    }
-                    else{
-                    self.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e你已加入其他队伍"}]}`)
-                    target.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e对方已加入其他队伍"}]}`)
-                    }
-                    break;
-                case 0:
-                    self.runCommandAsync(`tellraw @s {"rawtext":[{"text":"§e对方拒绝了你的请求"}]}`)
-                    break;
-            }
-        })
-    },10)
-
-}
-
-function log(text,say = false){
-    var thing = get_time() + text
-    var server = thing.replace(/§./g,"")
-    try{
-    http.get("http://127.0.0.1:1024/log?text=" + encodeURI(server))
-    }catch(any){}finally{}
-    if(say === true){
-    try{
-    http.get("http://127.0.0.1:1024/send?text=" + encodeURI("检测到服务器出现危险行为，请管理员前往确认"))
-    }catch(any){}finally{}
-   }
-    if(say == true){
-    world.say("§c" + server)
-    }
-}
-
-function show_board(player){
-    var text = ""
-    for(var cf of totals)
-    {
-        text += cf + "\n"
-    }
-    var ui = new ActionFormData()
-        .title("公告")
-        .body(text)
-        .button("打开交易" , ui_path + "icon_book_writable.png")
-        .button("打开主菜单" , ui_path + "icon_crafting.png")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                cdBar(player)
-            }
-            if(result.selection === 0){
-                tradeBar(player)
-            }
-        })
-}
-
-function opBoardBar(player){
-    var text = ""
-    for(var cf of totals)
-    {
-        text += cf + "\n"
-    }
-    var ui = new ActionFormData()
-        .title("公告设置")
-        .body(text)
-        .button("重新设置公告内容" , ui_path + "icon_book_writable.png")
-        .button("编辑公告内容" , ui_path + "icon_crafting.png")
-        .button("返回上一级")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 1){
-                editTotalsBar(player)
-            }
-            if(result.selection === 0){
-                changeTotalsBar(player,[])
-            }
-            if(result.selection === 2){
-                opBar(player)
-            }
-        })
-}
-
-function inLookBar(player,target){
-    var items = target.getComponent("minecraft:inventory").container
-    var text = "玩家名称：" + target.name + ",物品栏数量：" + items.size
-    for(var cf=0;cf<items.size;cf++){
-        var item = items.getItem(cf)
-        if(typeof(item) === "object"){
-            text += ",ID:" + item.typeId.replace("minecraft:","") + ";数量:" + String(item.amount) + ";名称:" + item.nameTag + ";数据值:" + String(item.data)
-        }
-    }
-    var ui = new ActionFormData()
-        .title("物品栏")
-        .body(text.replaceAll(",","\n"))
-        .button("推送到日志群")
-        .button("返回主菜单")
-        .button("违法行为")
-        .button("捅了老窝")
-        .button("绳之以法")
-        
-        ui.show(player).then(result => {
-            if(result.selection === 0){
-                add_history(text)
-            }
-            if(result.selection === 1){
-                cdBar(player)
-            }
-            if(result.selection === 2){
-                target.runCommandAsync("playsound server.wf @s")
-            }
-            if(result.selection === 3){
-                target.runCommandAsync("playsound server.lw @s")
-            }
-            if(result.selection === 4){
-                target.runCommandAsync("playsound server.szyf @s")
-            }
-        })
-}
-
-function changeTotalsBar(player,texts){
-    var text = ""
-    for(var cf=0;cf<texts.length;cf++){
-        var line = "§r§a" + String(cf+1) + " "
-        if(cf < 9){
-            line += "  "
-        }
-        line += "§r"
-        text += line + texts[cf] + "\n"
-    }
-    var ui = new ModalFormData()
-        .title("公告修改")
-        .textField(text,"新一行内容","")
-        .toggle("结束",false)
-        ui.show(player).then(result => {
-            var new_texts = texts
-            new_texts.push(result.formValues[0])
-            if(result.formValues[1] === false){
-            changeTotalsBar(player,new_texts)
-            }
-            else{
-                totals = new_texts
-                save_totals()
-            }
-        })
-}
-
-function totalsLineBar(player,texts,goal){
-    var text = texts[goal]
-    var ui = new ModalFormData()
-        .title("公告单行编辑")
-        .textField(text,"该行内容",text)
-        .dropdown("操作", ["修改","插入新一行","删除这一行"] ,0)
-
-        ui.show(player).then(result => {
-            var new_texts = texts
-            switch(result.formValues[1]){
-                case 0:
-                    new_texts[goal] = result.formValues[0]
-                    break;
-                case 1:
-                    new_texts.splice(goal+1,0,result.formValues[0])
-                    break;
-                case 2:
-                    new_texts.splice(goal,1)
-                    break;
-            }
-            editTotalsBar(player,new_texts,goal)
-        })
-}
-
-function totalsJumpBar(player,texts){
-    var text = ""
-    for(var cf=0;cf<texts.length;cf++){
-        var line = "§r§a" + String(cf+1) + " "
-        if(cf < 9){
-            line += "  "
-        }
-        line += "§r"
-        text += line + texts[cf] + "\n"
-    }
-    var ui = new ModalFormData()
-        .title("跳转")
-        .slider(text + "\n\n跳转到 ",1,texts.length,1)
-        ui.show(player).then(result => {
-            editTotalsBar(player,texts,result.formValues[0]-1)
-        })
-}
-
-function editTotalsBar(player,texts = [...totals],choose = 0){
-    var text = ""
-    for(var cf=0;cf<texts.length;cf++){
-        if(cf === choose){
-            text += "§a>>§r"
-        }
-        else{
-            text += "  "
-        }
-        text += " " + texts[cf] + "\n"
-    }
-    var ui = new ActionFormData()
-        .title("公告编辑")
-        .body(text)
-        .button("上一行")
-        .button("编辑这一行")
-        .button("下一行")
-        .button("跳转到指定行")
-        .button("完成")
-        .button("取消此次编辑")
-        
-        
-        ui.show(player).then(result => {
-            switch(result.selection){
-                case 0:
-                    if(choose > 0){
-                        editTotalsBar(player,texts,choose-1)
-                    }
-                    else{
-                        editTotalsBar(player,texts,choose)
-                    }
-                    break;
-                case 2:
-                    if(choose < texts.length - 1){
-                        editTotalsBar(player,texts,choose+1)
-                    }
-                    else{
-                        editTotalsBar(player,texts,choose)
-                    }
-                    break;
-                case 4:
-                    totals = texts
-                    save_totals()
-                    break;
-                case 5:
+    },{
+        text : "管理玩家领地",
+        icon : ui_icon.land,
+        func : ()=>{
+            choosePlayer(player,world.getAllPlayers(),(ps)=>{
+                if(ps.length >= 1){
+                    landBar(player,ps[0])
+                }else{
                     opBar(player)
-                    break;
-                case 3:
-                    totalsJumpBar(player,texts)
-                    break;
-                case 1:
-                    totalsLineBar(player,texts,choose)
-                    break;
+                }
+            })
+        }
+    },{
+        text : "删除领地",
+        icon : ui_icon.land,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                opBar(player)
+            }
+            ui2.title = "删除领地"
+            ui2.input("id","输入领地ID","输入7位ID","")
+            ui2.show(player,(r)=>{
+                var index = lands.ids.indexOf(r.id)
+                if(index === -1){
+                    tip(player,"找不到此领地！",()=>{
+                        opBar(player)
+                    })
+                }else{
+                    lands.ids.splice(index,1)
+                    lands.min.splice(index,1)
+                    lands.max.splice(index,1)
+                    save_lands()
+                    tip(player,"已删除此领地！",()=>{
+                        opBar(player)
+                    })
+                }
+            })
+        }
+    },{
+        text : "视角跟踪",
+        icon : ui_icon.eye,
+        func : ()=>{
+            followBar(player)
+        }
+    },{
+        text : "屏蔽/禁言玩家",
+        icon : ui_icon.mute,
+        func : ()=>{
+            stopPlayerBar(player)
+        }
+    },{
+        text : "获取背包",
+        icon : pictures.chest,
+        func : ()=>{
+            getPlayerItemsBar(player)
+        }
+    },{
+        text : "封禁列表管理",
+        icon : ui_icon.stop,
+        func : ()=>{
+            banListCheck(player)
+        }
+    },
+    {
+        text : "头衔设置",
+        icon : ui_icon.star,
+        func : ()=>{
+            tagSetBar(player)
+        }
+    },
+    {
+        text : "查看所有群组",
+        icon : ui_icon.group,
+        func : ()=>{
+            var text = []
+            
+            for(var id of groups){
+                var g = get_group(id)
+                if(is_group(g)){
+                    text.push(`群名:${g.name}\n群ID:${g.id}\n群主:${get_name_by_id(g.creater)}\n群成员:`)
+                    for(var m of g.member){
+                        text.push(get_name_by_id(m))
+                    }
+                    text.push("————————————")
+                }
+            }
+            var ui = new btnBar()
+            ui.title = "所有群组"
+            ui.body = "此处管理所有群组，点击进入管理员编辑模式"
+            ui.btns = [{
+                text : "返回",
+                icon: ui_icon.back,
+                func : ()=>{
+                    opBar(player)
+                }
+            }]
+            for(var id of groups){
+                var g = get_group(id)
+                if(is_group(g)){
+                    ui.btns.push({
+                        text : `${g.name}(${g.id})\n群主:${get_name_by_id(g.creater)}`,
+                        op : {i : id},
+                        func : (op) => {
+                            groupLookBar(player,get_group(op.i),true)
+                        }
+                    })
+                }
+            }
+            ui.show(player)
+        }
+    },{
+        text : "管理日志",
+        icon : ui_icon.share,
+        func : ()=>{
+            reportBar(player)
+        }
+    },{
+        text : "调试输出js全局变量",
+        icon : ui_icon.random,
+        func : ()=>{
+            chat("config:" + to_json(config),[player])
+            chat("IDs:" + to_json(ids),[player])
+            chat("Names:" + to_json(id_names),[player])
+        }
+    },{
+        text : "管理悬浮字",
+        icon : ui_icon.brush,
+        func : ()=>{
+            managerFloat(player)
+        }
+    },{
+        text : "插件设置",
+        icon : ui_icon.setting,
+        func : ()=>{
+            usfSettingBar(player)
+        }
+    }]
+
+    ui.btns.push({
+        text : "op管理",
+        icon : ui_icon.op,
+        func : ()=>{
+            setOpBar(player)
+        }
+    })
+    ui.show(player)
+}
+
+function managerFloat(player){
+    var ui = new btnBar()
+    ui.title = "管理悬浮字"
+    ui.body = [
+        "管理32格内的悬浮字",
+        "悬浮字本质是蝙蝠，为防止误杀悬浮字，kill悬浮字后会重新生成",
+        "你可以去除悬浮字的Float标签，这样悬浮字即可被kill",
+        "例如§e/tag @e[type=bat] remove Float§r命令可以使所有悬浮字都能被kill"]
+    
+    var op = {
+        location : player.location,
+        maxDistance : 32,
+        type : "bat",
+        tags : ["Float"]
+    }
+    for(var bat of player.dimension.getEntities(op)){
+        ui.btns.push({
+            text : `${get_data("name",bat)}`,
+            op : {
+                bat : bat
+            },
+            func : (op)=>{
+                editFloat(player,op.bat)
             }
         })
+    }
+    
+    ui.btns.push({
+        text : "添加悬浮字",
+        icon : ui_icon.add,
+        func : ()=>{
+            var bat = player.dimension.spawnEntity("minecraft:bat<usf:text>",player.location)
+            editFloat(player,bat)
+        }
+    })
+    ui.show(player)
 }
 
+function editFloat(player,bat){
+    var text = get_data("text",bat)
+    var name = get_data("name",bat)
+    
+
+    var ui = new infoBar()
+    ui.title = "编辑悬浮字"
+    ui.cancel = ()=>{
+        bat.remove()
+        managerFloat(player)
+    }
+    ui.busy = ()=>{
+        bat.remove()
+    }
+    ui.input("name","悬浮字备注(用于管理)","输入备注",name)
+    ui.input("text",get_text("tran_text_") + "\n内容","输入内容",text)
+    ui.input("x","X坐标","输入坐标",String(bat.location.x.toFixed(2)))
+    ui.input("y","Y坐标","输入坐标",String(bat.location.y.toFixed(2)))
+    ui.input("z","Z坐标","输入坐标",String(bat.location.z.toFixed(2)))
+    ui.toggle("de","删除",false)
+    ui.show(player,(r)=>{
+        if(r.de){bat.remove()}
+        else{
+            var lo = {di : bat.dimension.id}
+            lo.x = to_number(parseFloat(r.x),bat.location.x)
+            lo.y = to_number(parseFloat(r.y),bat.location.y)
+            lo.z = to_number(parseFloat(r.z),bat.location.z)
+            
+            save_data("lo",to_json(lo),bat)
+            save_data("name",r.name,bat)
+            save_data("text",r.text,bat)
+            if(!bat.hasTag("Float")){
+                bat.addTag("Float")
+            }
+        }
+        managerFloat(player)
+    })
+}
+
+function tip(player , text = "" , back = function(){}){
+    var ui = new btnBar()
+    ui.title = "提示"
+    ui.body = text
+    if(is_function(back)){
+        ui.cancel = back
+        ui.btns.push({
+            text : "返回",
+            icon : ui_icon.back,
+            func : ()=>{
+                back()
+            }
+        })
+    }
+    ui.btns.push({
+        text : "关闭",
+        icon : ui_icon.delete,
+        func : ()=>{
+            
+        }
+    })
+    ui.show(player)
+}
+
+function debug(player,com){
+    for(var id in global){
+        chat(id)
+    }
+    console.error(to_json(globalThis[com]),[player])
+}
+
+function setOpBar(player){
+    if(get_op_level(player) === 0){
+        return
+    }
+    var ui = new btnBar()
+    ui.title = "OP管理"
+    ui.cancel = ()=>{
+        opBar(player)
+    }
+
+    var text = "服务器OP:\n"
+    for(var id of ops){
+        text += `${id}(${get_name_by_id(id)})` + "\n"
+    }
+    text += "服务器owners:\n"
+    for(var o of get_owners()){
+        text += `${o}(${get_name_by_id(o)})` + "\n"
+    }
+    ui.body = text
+    ui.btns.push({
+        text : "添加op",
+        icon : ui_icon.add,
+        func : ()=>{
+            var names = []
+            var ps = []
+            for(var p of world.getAllPlayers()){
+                if(get_op_level(p) === 0){
+                    names.push(p.name)
+                    ps.push(p)
+                }
+            }
+            if(ps.length === 0){
+                tip(player,"当前没有可添加的玩家！",()=>{
+                    setOpBar(player)
+                })
+                return
+            }
+
+            var ui = new infoBar()
+            ui.cancel = ()=>{
+                setOpBar(player)
+            }
+            ui.title = "添加op"
+            ui.options("id","选择玩家",names,0)
+            ui.show(player,(r)=>{
+                ops.push(get_id(ps[r.id]))
+                save_ops()
+                setOpBar(player)
+            })
+        }
+    })
+    if(ops.length > 0){
+        ui.btns.push({
+            text : "删除op",
+            icon : ui_icon.delete,
+            func :()=>{
+                var names = []
+                for(var id of ops){
+                    names.push(String(id) + `(${get_name_by_id(id)})`)
+                }
+
+                var ui = new infoBar()
+                ui.cancel = ()=>{
+                    setOpBar(player)
+                }
+                ui.title = "删除op"
+                ui.options("id","选择玩家",names,0)
+                ui.show(player,(r)=>{
+                    ops.splice(r.id,1)
+                    save_ops()
+                    setOpBar(player)
+                })
+            }
+        })
+    }
+
+    if(get_owners().length > 0){
+        ui.btns.push({
+            text : "删除owner",
+            icon : ui_icon.delete,
+            func :()=>{
+                var owners = get_owners()
+                var names = []
+                for(var i=0;i<owners.length;i++){
+                    names.push(owners[i]+"("+get_name_by_id(owners[i])+")")
+                }
+                chooseBar(player,names,(r)=>{
+                    var ids = []
+                    for(var i of r){
+                        ids.push(owners[i])
+                    }
+                    for(var i of ids){
+                        owners.splice(owners.indexOf(i),1)
+                    }
+                    save_data("owners",to_json(owners))
+                    setOpBar(player)
+                })
+            }
+        })
+    }
 
 
-function add_history(text){
-    var say = get_time() + text
-    var server = say.replace(/§./g,"")
-    //world.say(say)
+
+    if(get_op_level(player) === 1){
+        ui.btns = [{
+            text : "关闭",
+            icon : ui_icon.delete,
+            func : ()=>{
+
+            }
+        }]
+    }
+    ui.show(player)
+}
+
+function save_ops(){
+    save_data("op" , to_json(ops))
+}
+
+function OnlineBoardBar(player){
+    var ui = new infoBar()
+    ui.title = "剔除离线玩家计分板"
+    var text = `输入要剔除离线玩家的计分板ID，多个计分板之间用英文分号;间隔开\n设置后,系统会生成一个下划线_后缀的计分板，这个计分板就是剔除离线玩家的计分板\n例如： Money >> Money_`
+    ui.input("r",text,"计分板id,多个之间用;隔开",config.copy_boards)
+    ui.show(player,(r)=>{
+        config.copy_boards = r.r
+        save_config()
+    })
+}
+
+function usfSettingBar(player){
+    var ui = new btnBar()
+    ui.title = "插件设置"
+    ui.body = 
+    ["欢迎来到插件设置界面",
+     "此处管理插件所有功能"]
+    ui.btns = [{
+        text : "计分板自动剔除离线玩家设置",
+        icon : ui_icon.ping,
+        func : ()=>{
+            OnlineBoardBar(player)
+        }
+    },{
+        text : "转账鸡设置",
+        icon : ui_icon.trade,
+        func : ()=>{
+            usfFunctionBar(player,"tran")
+        }
+    },
+    
+    /* {
+        text : "全局商店设置",
+        icon : ui_icon.trade,
+        func : ()=>{
+            usfFunctionBar(player,"store")
+        }
+    }, */
+    
+    {
+        text : "公告设置",
+        icon : ui_icon.sign,
+        func : ()=>{
+            usfBoardBar(player)
+        }
+    },{
+        text : "伤害血量显示",
+        icon : ui_icon.heart,
+        func : ()=>{
+            usfFunctionBar(player,"hurttip")
+        }
+    },{
+        text : "计分板默认值",
+        icon : ui_icon.scoreboard,
+        func : ()=>{
+            usfFunctionBar(player,"reset")
+        }
+    },{
+        text : "群组设置",
+        icon : ui_icon.group,
+        func : ()=>{
+            usfFunctionBar(player,"group")
+        }
+    },{
+        text : "日志功能设置",
+        icon : ui_icon.content,
+        func : ()=>{
+            usfFunctionBar(player,"log")
+        }
+    },{
+        text : "积分统计",
+        icon : ui_icon.online,
+        func : ()=>{
+            usfFunctionBar(player,"score")
+        }
+    },{
+        text : "领地功能设置",
+        icon : ui_icon.land,
+        func : ()=>{
+            usfFunctionBar(player,"land")
+        }
+    },{
+        text : "游戏时间统计",
+        icon : ui_icon.clock,
+        func : ()=>{
+            usfFunctionBar(player,"time")
+        }
+    },{
+        text : "锁定物品设置",
+        icon : ui_icon.slot,
+        func : ()=>{
+            setLockBar(player)
+        }
+    },{
+        text : "进服欢迎提示设置",
+        icon : ui_icon.tip,
+        func : ()=>{
+            usfFunctionBar(player,"tip")
+        }
+    },{
+        text : "聊天信息格式",
+        icon : ui_icon.chat,
+        func : ()=>{
+            usfFunctionBar(player,"chat")
+        }
+    },{
+        text : "玩家名格式",
+        icon : ui_icon.player,
+        func : ()=>{
+            usfFunctionBar(player,"name")
+        }
+    },{
+        text : "反作弊设置",
+        icon : ui_icon.stop,
+        func : ()=>{
+            usfFunctionBar(player,"hacker")
+        }
+    },{
+        text : "插件命令设置",
+        icon : ui_icon.command,
+        func : ()=>{
+            usfFunctionBar(player,"com")
+        }
+    },
+    {
+        text : "打开主菜单物品",
+        icon : ui_icon.big,
+        func : ()=>{
+           usfFunctionBar(player,"cd_items")
+        }
+    },{
+        text : "编辑主菜单文字",
+        icon : ui_icon.edit,
+        func : ()=>{
+            usfFunctionBar(player,"cd_con")
+        }
+    },
+    {
+        text : "传送点设置",
+        icon : ui_icon.pos,
+        func : ()=>{
+            usfFunctionBar(player,"pos")
+        }
+    },{
+        text : "在线玩家计分板设置",
+        icon : ui_icon.off,
+        func : ()=>{
+            usfFunctionBar(player,"online")
+        }
+    },
+    {
+        text : "游戏辅助功能",
+        icon : pictures.tnt,
+        func : ()=>{
+            usfFunctionBar(player,"game")
+        }
+    },
+    {
+        text : "语言设置",
+        icon : pictures.brush,
+        func : ()=>{
+            usfFunctionBar(player,"brush")
+        }
+    },
+    {
+        text : "其他功能",
+        icon : pictures.craft_table,
+        func : ()=>{
+            usfFunctionBar(player,"other")
+        }
+    },
+    ]
+    ui.show(player)
+}
+function usfBoardBar(player){
+    var ui = new btnBar()
+    ui.title = "公告设置"
+    ui.body = 
+    ["此处管理服务器的公告板",
+    "可以点击\"添加公告\"新建公告",
+    "点击公告可以预览、编辑",
+    "配置处可以修改公告基本设置"
+     ]
+    ui.btns = [{
+        text : "配置",
+        icon : ui_icon.sign,
+        func : ()=>{
+            usfFunctionBar(player , "board")
+        }
+    },
+    {
+        text : "添加公告",
+        icon : ui_icon.add,
+        func : ()=>{
+            editBoardBar(player , `board${Date.now()}`)
+        }
+    }
+    ]
+    var boards = get_boards()
+    for(var key of Object.keys(boards)){
+        var text = (boards[key].able) ? "§2[启用]§r" : "§4[禁用]§r"
+        if(boards[key].able && boards[key].up){
+            text += "§n[顶置]§r"
+        }
+        ui.btns.push({
+            text : text + boards[key].name,
+            icon : (is_string(boards[key].icon)) ? pictures[boards[key].icon] : null,
+            func : (op)=>{
+                editBoardBar(player , op.key)
+            },
+            op : {
+                "key" : key
+            }
+        })
+    }
+    ui.show(player)
+}
+
+function editBoardBar(player , id){
+    var data = parse_json(get_data(id))
+    if(Object.keys(data).length === 0){
+        data = {
+            able : true,
+            texts : [],
+            up : false,
+            name : "",
+            icon : null
+        }
+    }
+    var ui = new infoBar()
+    ui.title = "公告信息配置"
+    ui.toggle("able","[禁用 | 启用]",data.able)
+    ui.input("name","公告显示名称","输入名称",data.name)
+    add_pictures_choice(ui,"选择公告的图标",data.icon)
+    ui.toggle("up","顶置",data.up)
+    ui.toggle("delete","删除",false)
+    
+    ui.cancel = ()=>{
+        usfBoardBar(player)
+    }
+    
+    ui.show(player,(r)=>{
+        if(r["delete"] === true){
+            clear_data(id)
+            var ids = get_board_ids()
+            array_clear(ids,id)
+            save_data("board_ids",to_json(ids))
+            usfBoardBar(player)
+        }
+        else{
+            data.name = r.name
+            data.up = r.up
+            data.able = r.able
+            data.icon = r.icon
+            save_data(id,to_json(data))
+            var ids = get_board_ids()
+            if(array_has(ids,id) === false){
+                ids.push(id)
+            }
+            save_data("board_ids",to_json(ids))
+            
+            var ed = new arrayEditor()
+            ed.look = ()=>{
+                return tran_text(player,data.texts)
+            }
+            ed.edit(player,data.texts)
+            ed.back = ()=>{
+                save_data(id,to_json(data))
+                usfBoardBar(player)
+            }
+        }
+    })
+}
+
+function editLock(player,index){
+    var cf = lock_config[index]
+    var ui =new infoBar()
+    ui.cancel = ()=>{
+        lock_config.splice(index,1)
+        setLockBar(player)
+    }
+    ui.title = "编辑锁定物品"
+    ui.input("id","物品id","输入id(如:minecraft:apple)",to_string(cf[1]))
+    ui.range("count","物品数量",0,64,1,to_number(cf[2],1))
+    ui.options("slot","锁定位置",[
+        "物品栏1",
+        "物品栏2",
+        "物品栏3",
+        "物品栏4",
+        "物品栏5",
+        "物品栏6",
+        "物品栏7",
+        "物品栏8",
+        "物品栏9",
+    ],to_number(cf[0],0))
+    ui.toggle("de","删除",false)
+    ui.show(player,(r)=>{
+        if(r.de){
+            lock_config.splice(index,1)
+        }else{
+            cf[0] = r.slot
+            cf[1] = r.id
+            cf[2] = r.count
+        }
+        save_lock_config()
+        setLockBar(player)
+    })
+}
+
+function setLockBar(player){
+    var ui =new btnBar()
+    ui.title = "物品锁定"
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    ui.body = "管理锁定物品"
+    ui.btns.push({
+        text :"添加",
+        icon :ui_icon.add,
+        func :()=>{
+            lock_config.push([])
+            editLock(player,lock_config.length -1)
+        }
+    })
+    ui.btns.push({
+        text :"立即重载",
+        icon :ui_icon.go,
+        func :()=>{
+            for(var p of world.getAllPlayers()){
+                reset_lock_item(p)
+            }
+            setLockBar(player)
+        }
+    })
+    for(var i=0;i<lock_config.length;i++){
+        var items = lock_config[i]
+        ui.btns.push({
+            text : `${items[1]}\n物品栏:${items[0]+1}`,
+            op : {
+                index : i
+            },
+            func : (op)=>{
+                editLock(player,op.index)
+            }
+        })
+    }
+
+    ui.show(player)
+
+}
+
+function resetBoardBar(player){
+    var ui = new btnBar()
+    ui.title = "计分板默认值设置"
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    ui.body = ["当玩家计分板无值时，插件自动给予默认值"]
+    for(var i=0;i<reset_boards.length;i++){
+        var b = reset_boards[i]
+        ui.btns.push({
+            text : `计分板:${b[0]}\n默认值:${b[1]}`,
+            op : {
+                index : i
+            },
+            func : (op)=>{
+                var bd = reset_boards[op.index]
+                var ui2 = new infoBar()
+                ui2.cancel = ()=>{
+                    resetBoardBar(player)
+                }
+                ui2.title = "设置默认值"
+                ui2.input("id","计分板ID","输入id",bd[0])
+                ui2.input("value","默认值","输入整数",String(bd[1]))
+                ui2.toggle("de","删除",false)
+                ui2.show(player,(r)=>{
+                    if(r.de){
+                        reset_boards.splice(op.index,1)
+                        save_reset_boards()
+                        resetBoardBar(player)
+                    }else{
+                        bd[0] = r.id
+                        bd[1] = to_number(parseInt(r.value))
+                        save_reset_boards()
+                        resetBoardBar(player)
+                    }
+                })
+            }
+        })
+    }
+
+    ui.btns.push({
+        text : `添加`,
+        icon : ui_icon.add,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                resetBoardBar(player)
+            }
+            ui2.title = "设置默认值"
+            ui2.input("id","计分板ID","输入id","")
+            ui2.input("value","默认值","输入整数","0")
+            ui2.show(player,(r)=>{
+                reset_boards.push([r.id,to_number(parseInt(r.value))])
+                save_reset_boards()
+                resetBoardBar(player)
+            })
+        }
+    })
+    ui.show(player)
+}
+
+//插件设置界面
+function usfFunctionBar(player , type){
+    var ui = new infoBar()
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    
+    switch(type){
+        case "online":
+            ui.title = "在线计分板"
+            var text = "下面填入只需要显示在线玩家的计分板id，多个id用;隔开\n插件会自动生成id\"名字_\"的计分板，这个计分板就是只显示在线玩家的计分板\n例如:Show计分板将生成Show_计分板"
+            ui.input("online",text,"输入计分板id",config.other.online)
+            break
+        case "other":
+            ui.title = "其他功能设置"
+            ui.toggle("chat_board","留言板[禁用 | 启用]",config.other.chat_board)
+            break
+        case "log":
+            ui.title = "日志设置"
+            ui.toggle("able","[禁用 | 启用]",config.log.able)
+            ui.range("down","(由于无法日志服务器时,控制台会弹出警告,当首次无法连接时,USF会进入冷却,暂停日志发送,以防止控制台刷屏)\n冷却时间",30,600,30,config.log.down)
+            ui.input("address","日志服务器地址(一般不改)","输入地址",config.log.address)
+            for(var name of data_format.logs){
+                ui.toggle(name,get_text("log."+name),array_has(config.log.allow,name))
+            }
+            break
+        case "reset":
+            resetBoardBar(player)
+            return
+        case "hacker":
+            ui.title = "反作弊设置"
+            ui.toggle("back","回退操作[禁用 | 启用]",config.hacker.back)
+            ui.toggle("kick","踢出玩家[禁用 | 启用]",config.hacker.kick)
+            ui.toggle("chest","反自动偷箱",array_has(config.hacker.allow,"chest"))
+            break
+        case "store":
+            ui.title = "全局商店设置"
+            ui.toggle("able","全局商店[禁用 | 启用]",config.store.able)
+            break
+        case "score":
+            ui.title = "积分设置"
+            ui.toggle("able","[禁用 | 启用]",config.score.able)
+            ui.input("id","积分的计分板id","输入id,若id不存在则会创建",config.score.id)
+            var sc = get_score_config()
+            for(var k of Object.keys(sc)){
+                ui.toggle(k,get_text("score."+k) + "[关闭 | 开启]",array_has(config.scores,k))
+                ui.input(k,"增加积分/次","输入分数",String(sc[k][0]))
+                ui.input(k,"每日上限","输入分数",String(sc[k][1]))
+            }
+            break
+        case "cd_items":
+            var editor = new arrayEditor()
+            editor.back = ()=>{
+                save_config()
+                usfSettingBar(player)
+            }
+            editor.edit(player,config.cd_items)
+            return
+            break
+        case "brush":
+            ui.title = "语言设置"
+            ui.options("l","语言",["简体中文","繁体中文"],config.language)
+            break
+        case "group":
+            ui.title = "群组设置"
+            ui.toggle("able","[禁用 | 启用]",config.groups.able)
+            ui.range("max","可创建群组数量(管理员可无限创建)",0,100,1,config.groups.max)
+            break
+        case "land":
+            ui.title = "领地设置"
+            ui.toggle("able","[禁用 | 启用](实验性功能)",config.land.able)
+            ui.range("max","可创建领地数量(管理员可无限创建)",0,100,1,config.land.max)
+            ui.input("board","领地扣费计分板id","输入id",config.land.board)
+            ui.range("price","领地价格/每方块(最后价格约成整数)",0,10,1,config.land.price)
+            ui.toggle("must","金额必须足够(若关闭，则计分板可能会被扣费成负数)",config.land.must)
+            ui.input("show","领地提示语(/name转换为领地主名字)","输入提示语",config.land.show)
+            break
+        case "cd_con":
+            var menu = to_array(parse_json(get_data("menu_text")),data_format.menu)
+            var editor = new arrayEditor()
+            editor.back = ()=>{
+                save_data("menu_text",to_json(menu))
+                usfSettingBar(player)
+            }
+            editor.tran = true
+            editor.look = ()=>{
+                return tran_text(player,menu)
+            }
+            editor.edit(player,menu)
+            return
+            break
+        case "board":
+            var boards = get_boards()
+            var names = ["无"]
+            var ids = Object.keys(boards)
+            for(var key of ids){
+                names.push(boards[key].name)
+            }
+            ids = [""].concat(ids)
+            ui.title = "公告配置"
+            ui.toggle("able","公告[关闭 | 开启]",config.board.able)
+            
+            ui.options("_","默认公告",names,array_index(ids,config.board["_"]))
+            ui.match(ids)
+            
+            ui.options("first","发给新成员",names,array_index(ids,config.board.first))
+            ui.match(ids)
+            break
+        case "hurttip":
+            ui.title = "伤害血量功能设置"
+            ui.toggle("able","伤害血量提示[关闭 | 开启]",config.hurt.able)
+            ui.options("type","显示模式",["条状","心形"],config.hurt.type)
+            break
+        case "tran":
+            ui.title = "转账机功能设置"
+            ui.toggle("able","转账机[关闭 | 开启]",config.tran.able)
+            ui.input("board","转账的计分板，多个之间用英文分号;分隔","输入计分板ID",config.tran.board)
+            ui.range("free","手续费(百分比)",0,200,1,config.tran.free)
+            break
+        case "time":
+            ui.title = "游戏时间统计"
+            ui.toggle("able","游戏时间统计[关闭 | 开启]\n游戏时间的计分板id为time\n显示时间的计分板id为time_show",config.time.able)
+            ui.options("type","统计时间",["每秒","每分钟"],config.time.type)
+            ui.toggle("show","显示时间并锁定在玩家列表",config.time.show)
+            break
+        case "tip":
+            ui.title = "进服欢迎提示"
+            ui.toggle("able","进服欢迎提示[关闭 | 开启]",config.tip.able)
+            ui.input("content","内容" + get_text("tran_text"),"输入内容",get_data("tip"))
+            break
+        case "chat":
+            ui.title = "聊天格式"
+            var text = get_text("tran_text") + "\n\n聊天格式设置(以下内容会被特殊转义)：\n/sender >>发送者名称\n/tag >>聊天头衔\n/text >>聊天内容"
+            ui.input("format",text,"输入内容",config.chat.format)
+            ui.toggle("clear","禁用彩色字符",to_bool(config.chat.clear))
+            ui.input("l","消息长度限制(最大长度)","长度",String(config.chat.length))
+            ui.input("tag","玩家默认头衔(无则显示为维度)","输入头衔",config.chat.tag)
+            ui.toggle("disable","§e强行禁用USF聊天系统§r(+命令仍能使用)",to_bool(config.chat.disable))
+            break
+        case "name":
+            ui.title = "玩家名格式设置"
+            var text = get_text("tran_text") + "\n\n玩家名格式设置"
+            ui.input("format",text,"输入内容",config.name.format)
+            break
+        case "pos":
+            ui.title = "传送页面设置"
+            ui.toggle("die","返回死亡点[关闭 | 开启]",config.tp.die)
+            ui.toggle("per","个人传送点[关闭 | 开启]",config.tp.per)
+            ui.toggle("pp","玩家互传TPA[关闭 | 开启]",config.tp.pp)
+            ui.toggle("world","世界共享点[关闭 | 开启]",config.tp.world)
+            ui.toggle("group","群组共享点[关闭 | 开启]",config.tp.group)
+            ui.toggle("back","传送返回[关闭 | 开启]",config.tp.back)
+            ui.toggle("share","分享传送点[关闭 | 开启]",config.tp.share)
+            ui.range("per_count","个人传送点数量",1,55,1,config.tp.per_count)
+            ui.range("random_range","随机传送距离(为0时不显示)",0,50000,1000,config.tp.random_range)
+            ui.toggle("random_end","允许末地使用随机传送",config.tp.random_end)
+            ui.range("down","TP冷却时间/s",0,600,10,config.tp.down)
+            break
+        case "game":
+            ui.title = "游戏辅助设置"
+            ui.toggle("kill","主菜单显示自杀按钮",config.game.kill)
+            ui.toggle("creeper","苦力怕爆炸不破坏地形",config.game.creeper)
+            ui.toggle("sign","编辑告示牌需要双击",config.game.sign)
+            ui.toggle("lock","非op锁定生存模式",config.game.lock)
+            ui.toggle("fb","可发射火焰弹",config.game.fb)
+            ui.range("r_in","进入游戏给予抗性提升5的时间",0,30,1,config.game.r_in)
+            ui.range("r_di","维度改变给予抗性提升5的时间",0,30,1,config.game.r_di)
+            ui.range("r_rs","重生给予抗性提升5的时间",0,30,1,config.game.r_rs)
+            break
+        case "com":
+            ui.title = "插件命令设置"
+            for(var key of data_format.commands){
+                ui.toggle(key,`+${key}(${get_text('commands.'+key)})`,array_has(config.commands,key))
+            }
+            break
+    }
+    
+    ui.show(player,(r)=>{
+        switch(type){
+            case "board":
+                config.board["_"] = r["_"]
+                config.board["first"] = r["first"]
+                config.board.able = r.able
+                save_config()
+                usfBoardBar(player)
+                break
+            case "online":
+                config.other.online = r.online
+                save_config()
+                break
+            case "tran":
+                config.tran.able = r.able
+                config.tran.board = r.board
+                config.tran.free = Math.round(r.free)
+                save_config()
+                usfSettingBar(player)
+                break
+            case "group":
+                config.groups.able = r.able
+                config.groups.max = r.max
+                save_config()
+                usfSettingBar(player)
+                break
+            case "store":
+                config.store.able = r.able
+                save_config()
+                usfSettingBar(player)
+                break
+            case "hacker":
+                config.hacker.back = r.back
+                config.hacker.kick = r.kick
+                config.hacker.allow = []
+                if(r.chest){
+                    config.hacker.allow.push("chest")
+                }
+                save_config()
+                usfSettingBar(player)
+                break
+            case "brush":
+                config.language = r.l
+                save_config()
+                usfSettingBar(player)
+                break
+            case "hurttip":
+                config.hurt.able = r.able
+                config.hurt.type = r.type
+                save_config()
+                usfSettingBar(player)
+                break
+            case "land":
+                config.land.able = r.able
+                config.land.must = r.must
+                config.land.price = r.price
+                config.land.board = r.board
+                config.land.max = r.max
+                config.land.show = r.show
+                save_config()
+                if(r.able){
+                    tip(player,"领地为实验性功能，可能会破坏您的存档！请谨慎使用",()=>{
+                        if(un(world.scoreboard.getObjective(config.land.board))){
+                            confirm(player,"刚才配置的计分板不存在！领地功能无法使用！",()=>{
+                                usfSettingBar(player)
+                            })
+                        }else{
+                            usfSettingBar(player)
+                        }
+                    })
+                }else{
+                    usfSettingBar(player)
+                }
+                break
+            case "time":
+                config.time.able = r.able
+                config.time.type = r.type
+                config.time.show = r.show
+                save_config()
+                usfSettingBar(player)
+                break
+            case "tip":
+                config.tip.able = r.able
+                save_data("tip",r.content)
+                save_config()
+                usfSettingBar(player)
+                break
+            case "log":
+                config.log.able = r.able
+                config.log.down = r.down
+                config.log.address = r.address
+                config.log.allow = []
+                for(var name of Object.keys(r)){
+                    if(array_has(data_format.logs,name)){
+                        if(r[name]){
+                            config.log.allow.push(name)
+                        }
+                    }
+                }
+                save_config()
+                usfSettingBar(player)
+                break
+            case "chat":
+                config.chat.format = r.format
+                config.chat.clear = r.clear
+                config.chat.length = to_number(parseInt(r.l),1024)
+                config.chat.tag = r.tag
+                config.chat.disable = r.disable
+                save_config()
+                usfSettingBar(player)
+                break
+            case "name":
+                config.name.format = r.format
+                save_config()
+                usfSettingBar(player)
+                break
+            case "com":
+                config.commands = []
+                for(var key of Object.keys(r)){
+                    if(r[key]){
+                        config.commands.push(key)
+                    }
+                }
+                save_config()
+                usfSettingBar(player)
+                break
+            case "score":
+                config.score.id = r.id
+                config.score.able = r.able
+                var un_ids = ["id"  , "able"]
+                var sc = get_score_config()
+                config.scores = []
+                for(var k of Object.keys(r)){
+                    if(!array_has(un_ids,k)){
+                        if(r[k][0] === true){
+                            config.scores.push(k)
+                        }
+                        sc[k] = [to_number(parseFloat(r[k][1]),0) , to_number(parseFloat(r[k][2]),0)]
+                    }
+                }
+                save_data("score_config",to_json(sc))
+                save_config()
+                usfSettingBar(player)
+                break
+            case "pos":
+                config.tp.random_range = r.random_range
+                config.tp.random_end = r.random_end
+                config.tp.die = r.die
+                config.tp.world = r.world
+                config.tp.per = r.per
+                config.tp.share = r.share
+                config.tp.pp = r.pp
+                config.tp.per_count = r.per_count
+                config.tp.down = r.down
+                config.tp.group = r.group
+                config.tp.back = r.back
+                save_config()
+                usfSettingBar(player)
+                break
+            case "other":
+                config.other.chat_board = r.chat_board
+                save_config()
+                usfSettingBar(player)
+                break
+            case "game":
+                config.game.kill = r.kill
+                config.game.creeper = r.creeper
+                config.game.sign = r.sign
+                config.game.lock = r.lock
+                config.game.r_in = r.r_in
+                config.game.r_di = r.r_di
+                config.game.fb = r.fb
+                config.game.r_rs = r.r_rs
+                save_config()
+                usfSettingBar(player)
+                break
+        }
+    })
+}
+
+function show_board(player , id = null){
+    var boards = get_boards()
+    if(config.board.able === false || boards.length === 0){
+        return
+    }
+    var ids = Object.keys(boards)
+    for(var i of ids){
+        if(boards[i].able === false){
+            array_clear(ids,i)
+        }
+    }
+    var board = null
+    var current_id = id
+    if(id === null){
+        if(player.info.join_times === 1 && is_object(boards[config.board.first])){
+            board = boards[config.board.first]
+            current_id = config.board.first
+        }
+        if(board === null && is_object(boards[config.board["_"]])){
+            board = boards[config.board["_"]]
+            current_id = config.board["_"]
+        }
+    }else{
+        board = boards[id]
+    }
+    if(board === null){
+        var i = ids[random_int(ids.length)]
+        board = boards[i]
+        current_id = i
+    }
+    var ui = new btnBar()
+    ui.busy = null
+    ui.title = board.name
+    ui.body = tran_text(player,board.texts,true)
+    ui.btns = [{
+        text : "主菜单",
+        icon : ui_icon.craft_table,
+        func : ()=>{
+            cdBar(player)
+        }
+    }]
+
+    for(var i=0;i<ids.length;i++){
+        var last_id = ids[i]
+        if(last_id !== current_id && boards[last_id].able){
+            ui.btns.push({
+                text : (boards[last_id].up ? "§n[顶置]§r" : "") + boards[last_id].name,
+                icon : (is_string(boards[last_id].icon)) ? pictures[boards[last_id].icon] : null,
+                func : (op)=>{
+                    show_board(player,String(op.ii))
+                },
+                op : {
+                    ii : last_id
+                }
+            })
+            if(boards[last_id].up){
+                ui.btns.splice(0,0,ui.btns.pop())
+            }
+        }
+    }
+    ui.show(player)
+}
+
+// function show_board(player){
+    // var content = get_data("board_content")
+
+    
+    // var ui = new ui.btnBar()
+    // ui.title = "公告板"
+    // ui.body = content
+    
+    // ui.setBusy("again",40)
+    // ui.setCancel("close")
+    
+    // if(enable_settings.board.length < totals.length && full_text === false){
+        // ui.addButton("展开§?Unfold",{icon:ui_icon.down},(id,option) => {
+            // show_board(player,true)
+        // })
+    // }
+    
+    // ui.addButton("打开主菜单§?Menu Page",{icon:ui_path + "icon_crafting.png"},(id,option) => {
+        // try_cdBar(player)
+    // })
+    // ui.addButton("交易系统§?Trade Page",{icon:ui_path + "icon_deals.png"},(id,option) => {
+        // tradeBar(player)
+    // })
+    // ui.addButton("帮助页面§?Help",{icon:ui_path + "how_to_play_button_default.png"},(id,option) => {
+        // helpBar(player)
+        // player_history(player,show_board)
+    // })
+    // ui.addButton("语言设置/Language",{icon:ui_path + "world_glyph_color_2x.png"},(id,option) => {
+        // var ui = new infoBar()
+        // ui.back_func = ()=>{
+            // show_board(player)
+        // }
+        // ui.setCancel("run",()=>{
+            // show_board(player)
+        // })
+        // languageBar(player,ui)
+    // })
+    
+    // if(is_page_changer(player)){
+            // ui.addButton("编辑此页面§?Edit this page",{"icon":ui_icon.setting},(id,option) =>{
+            // pageSetBar(player,"board",() => {
+              // cdBar(player)
+            // })  
+          // })
+        // ui.addButton("编辑公告内容§?Edit this page content",{icon:ui_icon.page},(id,option) =>{
+            // var ui = new arrayEditor()
+                // ui.tran = true
+                // ui.array = [...totals]
+                // ui.callback = function(result){
+                    // totals = result
+                    // save_totals()
+                // }
+                // ui.finish = () =>{
+                    // show_board(player)
+                // }
+                // ui.show(player)
+        // })
+    // }
+    // if(has_feature("Board")){
+        // ui.show(player)
+    // }
+// }
+
+
+//工具函数
+
+
+function clear_colour(text){
+    return text.replace(/§./g,"")
+}
+
+//判断变量是否是string
+function is_string(v ){
+     return typeof(v) == "string" ? true : false
+}
+
+function is_function(v ){
+     return typeof(v) == "function" ? true : false
+}
+
+function to_bool(v , none = false){
+    if(typeof (v) === "boolean"){
+        return v
+    }
+    return none
+}
+
+function is_object(v ){
+     return typeof(v) == "object" ? true : false
+}
+
+function is_array(v ){
+     return Array.isArray(v)
+}
+
+//下面是格式化函数
+
+function to_string(value , none = ""){
+    return typeof(value) == "string" ? value : none
+}
+
+function to_array(value , none = []){
+    return Array.isArray(value) ? value : none
+}
+
+function to_object(value , none = {}){
+    return typeof(value) == "object" ? value : none
+}
+
+function array_index(array ,text , none = 0){
+    var index = array.indexOf(text)
+    return (index >= 0) ? index : none
+}
+
+function add_pictures_choice(ui , text , choice = null){
+    var texts = ["无"]
+    var keys = Object.keys(pictures)
+    for(var k of keys){
+        texts.push(get_text("Pictures." + k ))
+    }
+    ui.options("icon",text,texts,(keys.indexOf(choice) === -1) ? 0 : keys.indexOf(choice)+1)
+    ui.match([null].concat(Object.keys(pictures)))
+}
+
+function random_int(max = 10){
+    return Math.floor(Math.random()*max)
+}
+
+function array_clear(array , text){
+    while(array.indexOf(text) >= 0){
+        array.splice(array.indexOf(text),1)
+    }
+}
+function array_has(array , text){
+    if(array.indexOf(text) >= 0){
+        return true
+    }
+    return false
+}
+
+function is_number(value ){
+    if(typeof(value) == "number" ){
+        if(!isNaN(value)){
+            return true
+        }
+    }
+    return false
+}
+
+function to_number(value , none = 0){
+    if(typeof(value) == "number" ){
+        if(!isNaN(value)){
+            return value
+        }
+    } 
+    return none
+}
+
+function array2string(array = [] , none = "" , clear_color = false){
+    if(is_string(array)){return array}
+    else{
+        if(is_array(array)){
+            var text = ""
+            for(var cf of array){
+                text += "\n"
+                if(clear_color){
+                    text += "§r"
+                }
+                text += cf
+            }
+            return text.slice(1)
+        }
+    }
+    return none
+}
+
+function parse_number(text , none = 0){
+    var num = parseFloat(text)
+    if(Number.isNaN(num)){
+        return none
+    }
+    return num
+}
+
+function array_get(arr , index , none = ""){
+    if(arr.length > index){
+        return arr[index]
+    }
+    return none
+}
+
+function string_has(str,text){
+    if(str.indexOf(text) === -1){
+        return false
+    }
+    return true
+}
+
+function format(id , replacer){
+    var text = get_text(id)
+    for(var i = 0; i < replacer.length; i++){
+        text = text.replaceAll(("["+String(i)+"]") , String(replacer[i]))
+    }
+    return text
+}
+
+function parse_json(data){
+    if(!is_string(data) || data == ""){return {}}
     try{
-    http.get("http://127.0.0.1:1024/history?text=" + encodeURI(server))
-    }catch(any){/*world.say(any.message)*/}finally{}
+        data = JSON.parse(data)
+    }catch(e){}
+    return to_object(data,{})
 }
 
-system.events.beforeWatchdogTerminate.subscribe(event =>{
-    add_history("脚本运行异常，原因：" + event.terminateReason)
-    event.cancel = true
-})
+function pos_string(vec){
+    return `(${Math.round(vec.x)},${Math.round(vec.y)},${Math.round(vec.z)})`
+}
+
+//to_json必须传入object
+function to_json(data){
+    if(!is_object(data)){return }
+    try{
+        data = JSON.stringify(data)
+    }catch(e){}
+    return to_string(data,"{}")
+}
+
+//文本格式化
+function tran_text(player,texts,keep_array = false){
+    var things = {}
+    
+    if(is_player(player)){
+        var spawn = player.getSpawnPoint()
+        if(un(spawn)){
+            spawn = world.getDefaultSpawnLocation()
+        }
+        spawn.y = 64
+        things =  {
+            name : player.name,
+            pos : pos_string(player.location),
+            dimension : player.dimension.name,
+            tag : get_chat_tag(player),
+            health : String(Math.ceil(player.health.currentValue)),
+            level : String(player.level),
+            respawn : get_block_pos({location:spawn}),
+            join : String(player.info.join_times)
+        }
+    var boards = world.scoreboard.getObjectives()
+    for(var b of boards){
+        if(b.hasParticipant(player)){
+            things["board."+b.id] = String(b.getScore(player))
+        }else{
+            things["board."+b.id]  = "0"
+        }
+    }
+    }
+    
+    var tran = function(line){
+        if(line.startsWith("**")){
+
+        }else{
+            if(string_has(line,"/")){
+                for(var k of Object.keys(tran_info)){
+                    line = line.replaceAll("/"+k , tran_info[k])
+                }
+                for(var k of Object.keys(things)){
+                    line = line.replaceAll("/"+k , things[k])
+                }
+            } 
+        }
+        
+        line = line.replaceAll("/n","\n")
+        return line
+    }
+    
+    var text = []
+    
+    if(is_array(texts)){
+        for(var cf=0; cf<texts.length;cf++){
+            text.push(tran(texts[cf]))
+        }
+
+        if(keep_array){
+            return text
+        }
+        else{
+            return array2string(text , "" ,true)
+        }
+    }
+    if(is_string(texts)){
+        text = tran(texts)
+    }
+    
+    return text
+}
+
+
+function un(v){
+    if(typeof(v) === "undefined"){
+        return true
+    }
+    return false
+}
+
+function server_log(type , text , path){
+    if(!log_config.able || !config.log.able){
+        return
+    }
+    if(!log_config.server){
+        return
+    }
+    type = (type === 0) ? "log" : "print"
+    text = clear_colour(text)
+    logs.push({
+        type : encodeURI(type),
+        text : encodeURI(text),
+        path : encodeURI(path)
+    })
+
+}
