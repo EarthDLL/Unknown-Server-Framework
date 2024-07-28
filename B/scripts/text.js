@@ -55,7 +55,7 @@ export var texts = {
 
     "follow.tip" : "跟踪开始后，你可以使用+op命令退出跟踪.",
 
-    "action.land" : "空手[点击]/[右键]方块以选取坐标点\n输入+land 或 打开主菜单创建领地",
+    "action.land" : "空手[点击]/[右键]方块以选取坐标点\n潜行输入+land 或 打开主菜单创建领地\n输入+land 或 打开主菜单取消创建",
 
     "commands.cd" : "打开主菜单",
     "commands.op" : "打开管理界面",
@@ -73,6 +73,7 @@ export var texts = {
     "log.die" : "玩家死亡记录",
     "log.kill" : "玩家击杀记录",
     "log.jl" : "玩家进出游戏记录",
+    "log.info" : "玩家信息",
     "log.chest" : "容器记录",
     "log.pb" : "放置方块记录",
     "log.bb" : "破坏方块记录",
@@ -116,8 +117,8 @@ export var texts = {
     "data/health_listen" : "生命值监听",
     
     
-    "tran_text" : "\n此内容启用了转义，输入以下内容会自动转换\n/worldspawn >> 世界出生点\n/pos >>玩家当前位置\n/§rlist >>玩家列表\n/§rname >>玩家名称\n/§ralltime >>世界运行总时间(秒)\n/§rboard.计分板ID.score >>玩家计分板分数\n/§rboard.计分板ID.name >>该计分板显示名称\n/§rdimension >>玩家所在维度\n/tag >>聊天头衔\n/health >>玩家生命值\n/n >> 换行\n/unsleep >>未入睡玩家\n/worldspawn >>世界出生点\n/respawn >> 玩家出生点\n/join >>玩家进入游戏次数\n/items >> 掉落物数量\n/date >>年.月.日\n/time >>时.分.秒\n/level >>等级",
-    "tran_text_" : "\n此内容启用了转义，输入以下内容会自动转换\n/worldspawn >> 世界出生点\n/§rlist >>玩家列表\n/§ralltime >>世界运行总时间(秒)\n/§rboard.计分板ID.name >>该计分板显示名称\n/n >> 换行\n/unsleep >>未入睡玩家\n/worldspawn >>世界出生点\n/items >> 掉落物数量\n/date >>年.月.日\n/time >>时.分.秒",
+    "tran_text" : "\n此内容启用了转义，输入以下内容会自动转换\n/worldspawn >> 世界出生点\n/pos >>玩家当前位置\n/§rlist >>玩家列表\n/§rname >>玩家名称\n/§ralltime >>世界运行总时间(秒)\n/§rboard.记分版ID.score >>玩家记分版分数\n/§rdimension >>玩家所在维度\n/tag >>聊天头衔\n/health >>玩家生命值\n/n >> 换行\n/unsleep >>未入睡玩家\n/worldspawn >>世界出生点\n/respawn >> 玩家出生点\n/join >>玩家进入游戏次数\n/items >> 掉落物数量\n/date >>年.月.日\n/time >>时.分.秒\n/level >>等级",
+    "tran_text_" : "\n此内容启用了转义，输入以下内容会自动转换\n/worldspawn >> 世界出生点\n/§rlist >>玩家列表\n/§ralltime >>世界运行总时间(秒)\n/n >> 换行\n/unsleep >>未入睡玩家\n/worldspawn >>世界出生点\n/items >> 掉落物数量\n/date >>年.月.日\n/time >>时.分.秒",
     "tran_mess" : "\n/§rsender >>发送者名称\n/§rtag >>聊天头衔/§rtext >>聊天内容",
     
     "Scriptevent/error/NotFound" : "[USF]你所找的命令\"@0\"不存在",
@@ -134,7 +135,7 @@ export var texts = {
     "OP/Enable" : "OP  [否｜是]",
     "OP/Player" : "玩家管理功能",
     "OP/BanList" : "封禁列表管理",
-    "OP/Score" : "计分板修改",
+    "OP/Score" : "记分版修改",
     "OP/BagCheck" : "背包检查",
     "OP/Setting" : "修改插件设置",
 
@@ -201,9 +202,9 @@ export var texts = {
     "Pictures.bottle" : "水瓶",
     "Pictures.trade" : "交易",
     "Pictures.bed" : "红床",
-    "Pictures.trade" : "船",
-    "Pictures.trade" : "灯笼",
-    "Pictures.trade" : "命令方块",
+    "Pictures.boat" : "船",
+    "Pictures.lantern" : "灯笼",
+    "Pictures.commmand" : "命令方块",
 
     "PlayerChoise/title":"玩家选择器"
 }

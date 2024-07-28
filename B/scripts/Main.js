@@ -1,12 +1,8 @@
-import { //MolangVariableMap,
-    //BlockAreaSize,
-    //ItemStack,
+import { 
+    ItemStack,
     world,
     Player,
     system
-    //BlockTypes,
-    //EntityTypes,
-    //ItemTypes
   } from "@minecraft/server";
 import * as mc from "@minecraft/server";
 import lmd5 from "./md5.js"
@@ -30,13 +26,12 @@ const dimensions =[
     nether,
     end
 ]
-const lock_rules = ["MobGriefing","KeepInventory","TntExplodes","ShowCoordinates","Pvp","DoMobSpawning","DoImmediateRespawn","CommandBlocksEnabled"]
 //给予三个维度名字
 overworld.name = get_text("overworld.name")
 end.name = get_text("end.name")
 nether.name = get_text("nether.name")
 
-const version_code = "0.6.21B"
+const version_code = "0.6.24F"
 const version_text = `欢迎使用无名氏服务器框架\n插件版本:${version_code}\n作者：EarthDLL`
 
 //命名空间
@@ -44,17 +39,21 @@ const namespace = "usfV2:"
 const ui_path = "textures/ui/"
 
 var has_owner = false
-var reloaded = false
 var last_id = Date.now()
 var reset_boards = []
 var cache = {
     time : 0,
 }
+var events = {}
+var score_config = {}
+var tag_groups = []
 var tran_info = {
     weather : "",
 }
 var lock_config = []
 var ops = []
+var command_set = []
+var reloaded = false
 var item_count = 0
 var id_names = {}
 var lands = {
@@ -69,6 +68,8 @@ var log_config = {
     server : true
 }
 var ids = []
+var chests = []
+var global_goods = []
 var groups = []
 var group_mess = {}
 var id_player = {}
@@ -145,6 +146,89 @@ import("@minecraft/server-net").then((http)=>{
     },10)
 }).catch((err)=>{})
 
+var chat_board = {}
+system.chat_board = system.runInterval(()=>{
+    if(!config.chat_board.able){
+        return
+    }
+    var board = world.scoreboard.getObjective("chat")
+    if(un(board)){
+        world.scoreboard.addObjective("chat","聊天计分板")
+    }
+    chat_board  = {}
+    for(var p of world.getAllPlayers()){
+        var score = String(get_score(board,p))
+        chat_board[score] = to_array(chat_board[score])
+        chat_board[score].push(p)
+    }
+
+},20)
+
+system.tag_groups = system.runInterval(()=>{
+
+    
+    for(var player of world.getAllPlayers()){
+
+        if(player.hasTag("reload_lock_item")){
+            player.removeTag("reload_lock_item")
+            reset_lock_item(player)
+        }
+
+        player.last_sleep = to_bool(player.last_sleep,false)
+        if(player.isSleeping){
+            if(!player.last_sleep){
+                emitEvent(player,"sleep")
+            }
+        }
+        player.last_sleep = player.isSleeping
+
+        if(config.mini.land_tag && is_string(player.in_land)){
+            var tags = player.getTags()
+            for(var t of tags){
+                if(t.includes("land.") && (!t.includes(player.in_land) || player.in_land === "")){
+                    player.removeTag(t)
+                }
+            }
+            if(player.in_land !== ""){
+                player.addTag("land."+ player.in_land)
+            }
+        }
+        if(to_number(player.tag_length,0) !== player.getTags.length){
+        player.tag_length = player.getTags.length
+        for(var tags of tag_groups){
+            if(!un(player.current_tag)){
+                if(!player.hasTag(player.current_tag)){
+                    player.current_tag = undefined
+                }
+            }
+            
+            var next = ""
+            for(var tag of tags.split(";")){
+                if(player.hasTag(tag) && tag !== player.current_tag){
+                    next = tag
+                    break
+                }
+            }
+            if(un(player.current_tag)){
+                if(next === ""){
+                    var t = tags.split(";")[0]
+                    player.current_tag = t
+                    player.addTag(t)
+                }else{
+                    player.current_tag = next
+                }
+            }else{
+                if(next !== ""){
+                    player.removeTag(player.current_tag)
+                    player.addTag(next)
+                    player.current_tag = next
+                }
+            }
+        }
+    }
+    }
+},8)
+
 //tran_text的全局内容更新(每2s)
 var system_ids = {}
 system_ids.tran = system.runInterval(()=>{
@@ -165,7 +249,7 @@ system_ids.tran = system.runInterval(()=>{
     tran_info.items = String(item_count)
     
     var d = new Date()
-    tran_info.date = `${d.getFullYear()}.${d.getMonth()}.${d.getDate()}`
+    tran_info.date = `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`
     tran_info.time = `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`
     
     try{
@@ -219,6 +303,16 @@ system_ids.lock = system.runInterval(()=>{
 
 system_ids.particle = system.runInterval(()=>{
     for(var p of world.getAllPlayers()){
+        if(get_op_level(p) > 0){
+            if(!un(get_player_hand_item(p))){
+                if(get_player_hand_item(p).typeId === "minecraft:wooden_axe"){
+                    for(var b of to_array(p.chosen_blocks)){
+                        show_range(b,b,b.dimension)
+                    }
+                    setActionBar(p,"§e[小木斧]潜行下单击方块打开操作面板")
+                }
+            }
+        }
         if(p.landing.mode === 1){
             setActionBar(p,get_text("action.land"))
             if(is_array(p.landing.points)){
@@ -357,6 +451,41 @@ system_ids.second = system.runInterval(()=>{
     }
 },20)
 
+var ids = []
+system_ids.timer = system.runInterval(()=>{
+    if(config.timer !== ""){
+        try{
+        var board = world.scoreboard.getObjective(config.timer)
+        if(!un(board)){
+            for(var p of board.getParticipants()){
+                if(array_has(ids,p.id)){
+                    var s = get_score(board,p)
+                    if(s >= 1){
+                        board.setScore(p,s+ 1)
+                    }else{
+                        if(s !== -2){
+                            array_clear(ids,p.id)
+                            board.setScore(p,-1)
+                        }
+                    }
+                }else{
+                    var s = get_score(board,p)
+                    if(s >= 0){
+                        board.setScore(p,s - 1)
+                    }else{
+                        if(s === -2){
+                            ids.push(p.id)
+                            board.setScore(p,1)
+                        }
+                    }
+                }
+            }
+        }
+        }catch(err){}
+        
+    }
+},20)
+
 system_ids.land_test = system.runInterval(()=>{
     for(var player of world.getAllPlayers()){
         var land = get_land_by_pos(player.dimension,player.location)
@@ -367,12 +496,12 @@ system_ids.land_test = system.runInterval(()=>{
             }
             player.in_land = land.id
             var text = ""
-            
+
             var item = player.slots.getItem(player.selectedSlotIndex)
             if(un(item)){item = ""}
             else{item = item.typeId}
-            if(array_has(config.cd_items,item)){
-                text = `§e领地名称:${land.name}\n领地主:${get_name_by_id(land.creater)}\n领地ID:${land.id}`
+            if(array_has(config.cd_items,item) && is_bool(land.public) === false){
+                text = `§e领地名称:${land.name}\n领地主:${(is_bool(land.public) ? "公共领地" : get_name_by_id(land.creater))}\n领地ID:${land.id}`
             }
             else{
                 switch(land_member_level(player,land)){
@@ -392,12 +521,16 @@ system_ids.land_test = system.runInterval(()=>{
                         text += get_text("land.0")
                         break
                 }
-                text += config.land.show.replaceAll("/name",get_name_by_id(land.creater)) 
+                text += config.land.show.replaceAll("/name",(is_bool(land.public) ? "公共领地" : get_name_by_id(land.creater))) 
                 if(land.wel !== ""){
                     text += "\n§r" + land.wel
+                }else{
+                    if(is_bool(land.public)){
+                        text = ""
+                    }
                 }
             }
-            if(Date.now() - to_number(player.last_warn,0) > 1500){
+            if(Date.now() - to_number(player.last_warn,0) > 1500 && text !== ""){
                 setActionBar(player,text)
             }
         }else{
@@ -505,7 +638,7 @@ system_ids.chest_log = system.runInterval(()=>{
             none = true
         }
         if(none){
-            var text = `${no_minecraft("block.typeId")}${pos} Close : No Data\nPlayers:`
+            var text = `${no_minecraft(block.typeId)}${pos} Close : No Data\nPlayers:`
             for(var name of chest[pos].players){
                 text += name + ","
             }
@@ -712,25 +845,27 @@ function get_ban_list(){
 }
 
 
-function score_event(player , id){
-    if(config.score.able == false || un(player.scoreboardIdentity) || !array_has(config.scores,id)){
-        return
-    }
-    var board = world.scoreboard.getObjective(config.score.id)
-    if(!is_object(board)){
-        world.scoreboard.addObjective(config.score.id,"积分")
-        board = world.scoreboard.getObjective(config.score.id)
-    }
-
-    var c = get_score_config()[id]
-    if(is_array(c)){
-        var current = to_number(player.info.score[id],0)
-        if(c[1] > current){
-            player.info.score[id] = current + c[0]
-            board.addScore(player,c[0])
-            save_player_info(player)
+function score_event( player , id , data , count = 1 , type = 0){
+    for(var tag of Object.keys(score_config)){
+        if(player.hasTag(tag) || tag === ""){
+            for(var page of score_config[tag]){
+                if(page.type === id && (page.data === data || page.data === "")){
+                    if(type === 0){
+                        entity_command(player,`scoreboard players add @s ${page.board} ${String(count)}`)
+                    }else{
+                        entity_command(player,`scoreboard players set @s ${page.board} ${String(count)}`)
+                    }
+                }
+            }
+            
         }
     }
+}
+
+function entity_command(entity,command){
+    try{
+        entity.runCommand(command)
+    }catch(err){}
 }
 
 function get_items(id){
@@ -1059,10 +1194,6 @@ function get_player_groups(player){
     return my_groups
 }
 
-function get_score_config(){
-    return to_object(parse_json(get_data("score_config")),{})
-}
-
 
 
 
@@ -1080,9 +1211,6 @@ function reload_all(){
     dictionary = to_object(parse_json(get_data("dictionary")),{})
      
     groups = to_array(parse_json(get_data("group_ids")),[])
-    var score_config = get_score_config()
-    object_override(score_config,data_format.score)
-    save_data("score_config",to_json(score_config))
 
     public_pos = get_public_pos()
     world_pos = to_array(parse_json(get_data("world_pos")),[])
@@ -1103,8 +1231,41 @@ function reload_all(){
     ids = to_array(parse_json(get_data("ids")),[])
     id_names = to_object(parse_json(get_data("id_names")),{})
     ops = to_array(parse_json(get_data("op")),[])
+    chests = to_array(parse_json(get_data("chests")),[])
+    global_goods = to_array(parse_json(get_data("global_goods")),[])
+    tag_groups = to_array(parse_json(get_data("tag_groups")))
+    events = to_object(parse_json(get_data("events")))
+    command_set = to_array(parse_json(get_data("command_set")))
+    score_config = to_object(parse_json(get_data("score_config2")))
+
+    if(config.timer !== ""){
+        overworld.runCommand(`scoreboard players reset * ${config.timer}`)
+    }
     
     white_words = to_array(parse_json(get_data("white_words")),[])
+}
+
+function save_score_config(){
+    save_data("score_config2",to_json(score_config))
+}
+
+function save_events(){
+    save_data("events",to_json(events))
+}
+
+function save_command_set(){
+    save_data("command_set",to_json(command_set))
+}
+
+function save_tag_groups(){
+    save_data("tag_groups",to_json(tag_groups))
+    for(var p of world.getAllPlayers()){
+        p.current_tag = undefined
+    }
+}
+
+function save_global_goods(){
+    save_data("global_goods",to_json(global_goods))
 }
 
 function save_reset_boards(){
@@ -1214,7 +1375,7 @@ function reset_player_data(player){
     player.info = parse_json(get_data("info",player))
     player.slots = player.getComponent("minecraft:inventory").container
     player.lands = []
-    player.store_record = to_object(get_data("store_record",player))
+    player.store_record = to_object(parse_json(get_data("store_record",player)))
     player.health = player.getComponent("minecraft:health")
     for(var id of to_array(parse_json(get_data("lands",player)))){
         if(array_has(lands.ids,id)){
@@ -1239,8 +1400,38 @@ function reset_player_data(player){
         chat(get_data("tip"),[player],true)
     }
 
+    emitEvent(player,"join")
+
+    if(config.mini.clear_tag){
+        for(var t of player.getTags()){
+            if(t.indexOf("_") === 0){
+                player.removeTag(t)
+            }
+        }
+    }
+
     change_player_name(player)
     return
+}
+
+function emitEvent(player,type){
+    if(is_array(events[type])){
+        for(var e of events[type]){
+            if(player.hasTag(e.tag) || e.tag === ""){
+                run_text_commands(player,e.commands)
+            }
+        }
+    }
+}
+
+function run_text_commands(player,text){
+    
+    text = to_array(parse_json(text))
+    for(var c of text){
+        try{
+        player.runCommand(c)
+        }catch(err){}
+    }
 }
 
 function get_chat_tag(player){
@@ -1257,6 +1448,10 @@ function get_chat_tag(player){
 
 function set_chat_tag(p,tag){
     save_data("chat_tag",tag,p)
+}
+
+function save_store_record(player){
+    save_data("store_record",to_json(player.store_record),player)
 }
 
 function get_player_personal_pos(player){
@@ -1360,16 +1555,20 @@ function afterEntityDie(event){
         if(!un(hurt_entity)){
             if(is_player(hurt_entity)){
                 text += " By " + hurt_entity.name
-                score_event(hurt_entity,"pvp")
             }
         }
         text += `(Cause:${cause})`
         if(array_has(config.log.allow,"die")){
             server_log(0,text,get_player_path(entity))
         }
+
+        emitEvent(entity,"die")
+        score_event(entity,"die","")
     }
     if(!un(hurt_entity)){
         if(is_player(hurt_entity)){
+            emitEvent(hurt_entity,"kill")
+            score_event(hurt_entity,"kill",entity.typeId)
             if(array_has(config.log.allow,"kill")){
                 var text = `Kill `
                 if(is_player(entity)){
@@ -1379,9 +1578,6 @@ function afterEntityDie(event){
                 }
                 text += get_block_pos_di(hurt_entity)
                 server_log(0,text,get_player_path(hurt_entity))
-            }
-            if(entity.matches({families:["monster"]})){
-                score_event(hurt_entity,"kill")
             }
         }
     }
@@ -1427,9 +1623,14 @@ function reset_lock_item(player){
         try{
         var item = player.slots.getItem(items[0])
         if(un(item)){
+            var tag = (items.length > 3) ? items[3] : ""
+            if(tag !== "" && !player.hasTag(tag)){
+                continue
+            }
             item = new mc.ItemStack(items[1],items[2])
             item.setLore(["usf:Lock"])
             item.lockMode = "slot"
+            item.keepOnDeath = true
             player.slots.setItem(items[0],item)
         }
         }catch(err){}
@@ -1465,11 +1666,17 @@ function run_command(player,com){
 
     switch(commands[0]){
         case "land" : 
+        if(player.isSneaking){
+            player.landing.mode = 0 
+            player.landing.points = []
+            chat("§e[领地系统]已取消创建领地！",[player])
+        }else{
             if(player.landing.points.length === 2){
                 createLandBar(player)
             }else{
                 show_title(player,get_text("land.two"))
             }
+        }
             break
         case "unsleep":
             chat(get_text("unsleep")+`${tran_info.unsleep}`,[player])
@@ -1667,6 +1874,8 @@ function beforePlayerInteractWithBlock(event){
         }
     }
     
+    if(to_number(player.last_in , 0) !== system.currentTick){
+
     if(block.typeId === "minecraft:lectern"){
         var com = block.getComponent("minecraft:inventory").container
         var b_item = com.getItem(0)
@@ -1694,15 +1903,113 @@ function beforePlayerInteractWithBlock(event){
         }
     }
     
+    
+    
     if(!un(item)){
-        
+        if(item.typeId === "minecraft:wooden_axe"){
+        if(get_op_level(player) >0){
+            if(player.isSneaking === false){
+                player.chosen_blocks = to_array(player.chosen_blocks)
+                player.chosen_blocks.push(block)
+                if(player.chosen_blocks.length > 2){
+                    player.chosen_blocks = player.chosen_blocks.slice(1,3)
+                }
+                setActionBar(player,"§e[小木斧]成功选定方块")
+            }else{
+                system.run(()=>{
+                    axeBar(player)
+                })
+                
+            }
+        }
+        }
+    }
+    
+    if(!un(item)){
         if(array_has(config.cd_items,item.typeId)){
             event.cancel = true
             system.run(()=>{
                 cdBar(player)
             })
+            return
         }
     }
+
+    if(!un(item)){
+        if(array_has(Object.keys(config.config_item),item.typeId)){
+            event.cancel = true
+            system.run(()=>{
+                if(is_string(config.config_item[item.typeId].chest)){
+                    get_store_item(config.config_item[item.typeId].chest,config.config_item[item.typeId].item,(item2)=>{
+                        if(!un(item2)){
+                            var data = to_object(parse_json(get_data("data",item2)))
+                            if(is_string(data.title)){
+                                showConfigBar(player,data,"")
+                            }
+                        }
+                    })
+                }
+            })
+            return
+        }
+    }
+
+    var slot = get_player_offhand_slot(player)
+    if(!un(slot)){
+        if(slot.hasItem()){
+            if(slot.typeId === "usf:config_file"){
+                event.cancel = true
+                system.run(()=>{
+                    if(player.isSneaking === true){
+                        useConfigFileBar(player,block)
+                    }else{
+                        editConfigFileBar(player)
+                    }
+                })
+                return
+            }
+        }
+    }
+
+    var d = get_data(get_block_pos_id(block))
+    if(d !== ""){
+        d = to_object(parse_json(d))
+        if(is_string(d.chest)){
+            get_store_item(d.chest,d.slot,(item)=>{
+                if(!un(item)){
+                    var data = to_object(parse_json(get_data("data",item)))
+                    if(is_string(data.title)){
+                        system.run(()=>{
+                            showConfigBar(player,data,"")
+                        })
+                    }
+                }
+            })
+            return
+        }
+    }else{
+        try{
+        var buttom = block.dimension.getBlock({x:block.x,y:block.y-1,z:block.z})
+        var com = buttom.getComponent("minecraft:inventory")
+        if(!un(com)){
+            var i = com.container.getItem(0)
+            if(!un(i)){
+                if(i.typeId === "usf:config_file"){
+                    var data = to_object(parse_json(get_data("data",i)))
+                    if(is_string(data.title)){
+                        system.run(()=>{
+                            showConfigBar(player,data,"")
+                        })
+                    }
+                    return
+                }
+            }
+        }
+        }catch(err){}
+    }
+
+
+    
     
     if(block.hasTag("text_sign") && config.game.sign){
         if(Date.now() - to_number(player.last_edit_sign) < 800){
@@ -1714,6 +2021,118 @@ function beforePlayerInteractWithBlock(event){
         }
     }
 
+    }
+    player.last_in = system.currentTick
+
+}
+
+function axeFillBar(player){
+    var modes = ["","replace","outline"]
+    var add = ""
+    var blocks = player.chosen_blocks
+    
+    var ui =new infoBar()
+    ui.title = "小木斧"
+    ui.options("type","填充模式",["全填","替换","填充外围"],0)
+    ui.input("re","替换的方块ID(仅替换时填)","输入ID","minecraft:")
+    ui.options("id","填充的方块",["接下来放置的方块","空气"],0)
+    ui.show(player,(r)=>{
+        if(r.type === 1){
+            add = r.re
+        }
+        if(r.id === 1){
+        player.dimension.runCommand(`fill ${blocks[0].x} ${blocks[0].y} ${blocks[0].z} ${blocks[1].x} ${blocks[1].y} ${blocks[1].z} air ` + modes[r.type] + " " + add)
+        chat("§e[小木斧]执行中...",[player])
+        }else{
+            player.axe_filling = `fill ${blocks[0].x} ${blocks[0].y} ${blocks[0].z} ${blocks[1].x} ${blocks[1].y} ${blocks[1].z} {{{{}}}} ` + modes[r.type] + " " + add
+        }
+    })
+}
+
+function axeStrBar(player){
+    var ui =new infoBar()
+    ui.title = "导出为结构"
+    ui.input("id","结构ID","输入ID","structure")
+    ui.toggle("mode","保存模式[临时|永久]",false)
+    ui.toggle("block","包含方块",true)
+    ui.toggle("entity","包含实体",true)
+    ui.show(player,(r)=>{
+        world.structureManager.createFromWorld(r.id,player.dimension,player.chosen_blocks[0],player.chosen_blocks[1],{
+            includeBlocks : r.block,
+            includeEntities : r.entity,
+            saveMode : (r.mode)?"World" : "Memory"
+        })
+    })
+}
+
+function axeBar(player){
+    if(to_array(player.chosen_blocks).length !== 2){
+        setActionBar(player,"§e[小木斧]请选择两个点后继续")
+        return
+    }
+    var ui = new btnBar()
+    ui.title = "小木斧"
+    ui.body = "小木斧操作面板"
+    ui.btns = [{
+        text : "填充选区内方块",
+        icon : ui_icon.brush,
+        func : ()=>{
+            axeFillBar(player)
+        }
+    },
+    {
+        text : "生成为结构",
+        icon : ui_icon.compass,
+        func : ()=>{
+            axeStrBar(player)
+        }
+    }]
+    
+    ui.show(player)
+}
+
+function useConfigFileBar(player,block){
+    var item = get_player_offhand_item(player)
+    if(un(item)){
+        return
+    }
+
+    var data = get_data(get_block_pos_id(block))
+    var ui = new btnBar()
+    ui.title = "绑定策略文件"
+    ui.body = data === "" ? "目前该方块未绑定策略文件！" : "§e该方块已绑定策略文件！"
+    if(data === ""){
+        ui.btns = [{
+            text : "绑定现在的策略文件",
+            icon : ui_icon.go,
+            func : ()=>{
+                set_store_item(item,(chest,slot)=>{
+                    save_data(get_block_pos_id(block),to_json({chest:chest,slot:slot}))
+                })
+            }
+        }]
+    }else{
+        ui.btns = [{
+            text : "覆盖现在的策略文件",
+            icon : ui_icon.brush,
+            func : ()=>{
+                set_store_item(item,(chest,slot)=>{
+                    save_data(get_block_pos_id(block),to_json({chest:chest,slot:slot}))
+                })
+            }
+        },{
+            text : "解绑现在的策略文件",
+            icon : ui_icon.back,
+            func : ()=>{
+                save_data(get_block_pos_id(block),"")
+            }
+        }]
+    }
+    ui.show(player)
+}
+
+function get_block_pos_id(block){
+    return `${block.dimension.id}.${block.x}.${block.y}.${block.z}`
 }
 
 function beforeItemUse(event){
@@ -1838,7 +2257,17 @@ function beforeChatSend(event){
             break
     }
     
+    if(config.chat_board.able){
+        var board = world.scoreboard.getObjective("chat")
+        if(!un(board)){
+            t = to_array(chat_board[String(get_score(board,sender))])
+        }
+    }
+    
     chat(format,t,false)
+    system.run(()=>{
+        emitEvent(sender,"chat")
+    })
     if(array_has(config.log.allow,"chat")){
         server_log(0,format,"Chat")
     }
@@ -1868,9 +2297,19 @@ function afterEntitySpawn(event){
     
 }
 
+
 function beforeBlockPlace(event){
     var player = event.player
     var block = event.block
+    
+    if(to_string(player.axe_filling) !== ""){
+        event.cancel = true
+        system.run(()=>{
+        player.dimension.runCommand(player.axe_filling.replaceAll("{{{{}}}}",event.permutationBeingPlaced.type.id))
+        player.axe_filling = ""
+        chat("§e[小木斧]执行中...",[player])
+        })
+    }
     
     if(config.land.able){
         var land = get_land_by_pos(player.dimension,block.center())
@@ -1892,7 +2331,8 @@ function afterBlockPlace(event){
     var block = event.block
     var id = no_minecraft(block.typeId)
 
-    score_event(player,"pb")
+    emitEvent(player,"pb")
+    score_event(player,"pb",block.typeId)
     player.block_places = to_number(player.block_places) + 1
     if(array_has(config.log.allow,"pb")){
         log_info.pb[player.name] = to_object(log_info.pb[player.name])
@@ -1937,7 +2377,8 @@ function afterBlockBreak(event){
     var block = event.block
     var broken = event.brokenBlockPermutation
     var id = no_minecraft(broken.type.id)
-    score_event(player,"bb")
+    score_event(player,"bb",broken.type.id)
+    emitEvent(player,"bb")
 
     if(array_has(config.log.allow,"bb")){
         log_info.bb[player.name] = to_object(log_info.bb[player.name])
@@ -1982,10 +2423,6 @@ function playerSpawn(event){
     save_player_info(player)
     
     reset_player_data(player)
-
-    if(is_login){
-        score_event(player,"login")
-    }
     
     array_clear(ids,get_id(player))
     ids.push(get_id(player))
@@ -2001,7 +2438,7 @@ function playerSpawn(event){
     if(get_owners().length === 0){
         chat(get_text("tip.init"),[player],false)
     }
-    show_board(player)
+    show_board(player,null,false)
     //show_tips(player)
 
     if(config.game.r_in > 0){
@@ -2024,6 +2461,24 @@ function playerSpawn(event){
     }
 
     reset_lock_item(player)
+    score_event(player,"health","",Math.round(get_health(player)),1)
+
+    if(array_has(config.log.allow,"info")){
+        server_log(2,{
+            name : player.name,
+            last_join_game_time : Date.now(),
+            spawn_point : dimension_pos_to_text(player.getSpawnPoint()),
+            tags : player.getTags(),
+            usfID : get_id(player),
+        },player.name)
+    }
+}
+
+function dimension_pos_to_text(pos){
+    if(un(pos)){
+        return "none"
+    }
+    return `[${no_minecraft(pos.dimension.id)}](${Math.round(pos.x)},${Math.round(pos.y)},${Math.round(pos.z)})`
 }
 
 function afterPistonActivate(event){
@@ -2041,6 +2496,45 @@ function afteritemUse(event){
         if(item.typeId === "usf:op"){
             if(get_op_level(player) >= 1){
                 opBar(player)
+            }
+        }
+    }
+
+    var event = get_item_event(item)
+    if(!un(event)){
+        if(event[0] === "runner"){
+            var index = to_number(parseInt(event[1]),1)
+            if(command_set.length >= index){
+                run_text_commands(player,command_set[index-1])
+                var slot = player.slots.getSlot(player.selectedSlotIndex)
+                if(slot.hasItem()){
+                    if(slot.amount === 1){
+                        slot.setItem()
+                    }else{
+                        slot.amount -= 1
+                    }
+                }
+            }
+        }
+        if(event[0] === "tp"){
+            var block = player.getBlockFromViewDirection({includePassableBlocks : false,maxDistance:48})
+            if(!un(block)){
+                block = block.block
+                try{
+                if(is_object(block.above())){
+                    if(block.above().typeId === "minecraft:air"){
+                        tp_entity(player,block.dimension,block.center().x,block.y+1,block.center().z,false)
+                        var slot = player.slots.getSlot(player.selectedSlotIndex)
+                        if(slot.hasItem()){
+                            if(slot.amount === 1){
+                                slot.setItem()
+                            }else{
+                                slot.amount = slot.amount -1
+                            }
+                        }
+                    }
+                }
+            }catch(err){}
             }
         }
     }
@@ -2117,6 +2611,9 @@ function afterPlayerDimensionChange(event){
     var to = event.toDimension
     var from = event.fromDimension
 
+    emitEvent(player,"di")
+    score_event(player,"di",to.id)
+
     if(array_has(config.log.allow,"di")){
         server_log(0,`Dimension Change:${from.name} to ${to.name}`,get_player_path(player))
     }
@@ -2129,19 +2626,42 @@ function afterPlayerDimensionChange(event){
     player.landing.points = []
 }
 
+function get_health(entity){
+    return entity.getComponent("minecraft:health").currentValue
+}
+
 function afterEntityHurt(event){
     var hurt = event.hurtEntity
     var hurter = event.damageSource.damagingEntity
+    var damage = event.damage
+
+    if(is_player(hurt)){
+        score_event(hurt,"health","",Math.round(get_health(hurt)),1)
+    }
     
     if(typeof(hurter) === "object"){
     if (hurter.typeId == "minecraft:player"){
         if(is_player(hurter)){
-            score_event(hurter,"hit")
+            score_event(hurter,"damage",hurt.typeId,Math.ceil(damage))
         }
 
+        var event = get_item_event(get_player_hand_item(hurter))
+        if(!un(event)){
+            if(event[0] === "knock"){
+                var level = to_number(parseInt(event[1]),1)
+                if(level > 10){
+                    level = 10
+                }
+                var view = hurter.getViewDirection()
+                hurt.applyKnockback(view.x,view.z,0.5*(level+1),0.05*(level+1))
+            }
+        }
+
+        emitEvent(hurter,"attack")
+
         if(hurt.hasComponent("minecraft:health")){
-        var max = event.hurtEntity.getComponent("minecraft:health").effectiveMax
-        var now = event.hurtEntity.getComponent("minecraft:health").currentValue
+        var max = hurt.getComponent("minecraft:health").effectiveMax
+        var now = hurt.getComponent("minecraft:health").currentValue
         if(config.hurt.able && now >= 0){
             var text = ""
             var level = now / max *100
@@ -2200,7 +2720,24 @@ function get_player_hand_item(player){
     return player.slots.getItem(player.selectedSlotIndex)
 }
 
+function get_player_offhand_item(player){
+    return player.getComponent("minecraft:equippable").getEquipment("Offhand")
+}
+
+function get_player_offhand_slot(player){
+    var slot = player.getComponent("minecraft:equippable").getEquipmentSlot("Offhand")
+    if(un(slot) || !slot.isValid()){
+        return undefined
+    }
+    return slot
+}
+
 function land_member_level(player,land){
+    if(is_bool(land.public)){
+        if(get_op_level(player) > 0){
+            return 3
+        }
+    }
     if(player.info.manager === true && get_op_level(player) > 0){
         return 4
     }
@@ -2349,12 +2886,27 @@ function beforePlayerLeave(event){
     var player = event.player
     delete id_player[get_id(player)]
     var name = player.name
+    var spawn_pos = player.getSpawnPoint()
+    var tags = player.getTags()
+    var pos = player.location
+    pos.dimension = player.dimension
 
     system.run(()=>{
         if(array_has(config.log.allow,"jl")){
             server_log(0,"Leave",get_player_path({name:name}))
         }
+        if(array_has(config.log.allow,"info")){
+            server_log(2,{
+                name : name,
+                last_leave_game_time : Date.now(),
+                spawn_point : dimension_pos_to_text(spawn_pos),
+                tags : tags,
+                leave_pos : dimension_pos_to_text(pos)
+            },name)
+        }
     })
+
+    
 }
 
 function scriptEventReceive(event){
@@ -2913,6 +3465,7 @@ function to_pos(player,pos){
     }
     tp_entity(player,get_di(pos.di),pos.x,pos.y,pos.z,true,false,true)
     player.last_tp = Date.now()
+    emitEvent(player,"pos")
 }
 
 function get_pos_name(pos){
@@ -2989,9 +3542,7 @@ function pos_to_text(pos){
     return `(${Math.round(pos.x)},${Math.round(pos.y)},${Math.round(pos.z)})`
 }
 
-function save_player_store_record(player){
-    save_data("store_record",to_object(player.store_record),player)
-}
+
 
 function viewPosBar(player , pos , editable , ui = new btnBar() , save = function(){} , back = function(){}){
     
@@ -3113,6 +3664,7 @@ function tranBar(player){
                         players[r.p].runCommand(`scoreboard players add @s ${obs[r.id].id} ${String(count)}`)
                         player.runCommand(`scoreboard players remove @s ${obs[r.id].id} ${String(Math.ceil(count * (1+config.tran.free/100)))}`)
                         chat("§e[转账机]转账成功！",[player])
+                        chat("§e[转账机]您收到一笔转账！金额："+String(count),[players[r.p]])
                     }
                     else{
                         chat("§e[转账机]余额不足！",[player])
@@ -3555,7 +4107,7 @@ function landBar(player , goal){
     ui.title = "领地管理"
 
     if(un(world.scoreboard.getObjective(config.land.board))){
-        confirm(player,"计分板配置错误！领地功能无法使用！")
+        confirm(player,"记分版配置错误！领地功能无法使用！")
         return
     }
 
@@ -3576,6 +4128,7 @@ function landBar(player , goal){
                     "领地设置方法:",
                     "空手选取方块点",
                     "输入+land命令 或 打开主菜单 即可进入创建页面",
+                    "潜行状态下输入+land命令 或 打开主菜单 即可进入取消创建",
                     "创建页面可更改Y轴",
                     "创建页面选择 暂时预览 模式可以继续修改坐标点"
                     
@@ -3660,14 +4213,14 @@ function viewLandBar(player,goal,id){
         `领地名:${land.name}`,
         `领地ID:${land.id}`,
         `范围:${vector3_to_string(land.from)} 到 ${vector3_to_string(land.to)}`,
-        `领地主人:${get_name_by_id(land.creater)}`,
+        `领地主人:${(is_bool(land.public) ? "公共领地" : get_name_by_id(land.creater))}`,
         `成员:${array2line(land.member)}`,
         `开放队伍:${array2line(land.group)}`
     ]
      if(is_number(land.price)){
         ui.body.push(`价格:${land.price}`)
-     }
-    if(land_member_level(player,land) >= 3){
+     } 
+    if(land_member_level(player,land) >= 3 || (is_bool(land.public) && is_op(player))){
     ui.btns.push({
         text : "编辑领地名",
         icon : ui_icon.edit,
@@ -3821,37 +4374,47 @@ function get_random_tp_range(){
 
 function managerStoreGroupsBar(player,type){
     var ui = new btnBar()
+    ui.cancel = ()=>{
+        manageStoreBar(player,0)
+    }
     ui.title = "编辑分组"
-    ui.text = ["管理分组","注意：分组添加后不能修改，只能删除重新添加"]
+    ui.body = ["管理分组","注意：分组添加后不能修改，只能删除重新添加"]
     ui.btns = [{
         text : "新增分组",
         icon : ui_icon.add,
         func : ()=> {
             var ui2 = new infoBar()
-            ui2.back = ()=>{
+            ui2.cancel = ()=>{
                 managerStoreGroupsBar(player,type)
             }
             ui2.title = "新增分组"
             ui2.input("name","分组名称","名称","")
             add_pictures_choice(ui2,"选择图标")
             ui2.show(player,(r)=>{
+                if(r.name === ""){
+                    tip(player,"分组名称不能为空！",()=>{
+                        managerStoreGroupsBar(player,type)
+                    })
+                    return
+                }
+
                 config.store.groups[r.name] = r.icon
+                save_config()
                 managerStoreGroupsBar(player,type)
             })
         }
     },{
         text : "删除分组",
-        icon : ui_icon.add,
+        icon : ui_icon.delete,
         func : ()=> {
-            var groups = {}
-            groups = config.store.groups
+            var groups = config.store.groups
 
             var ui2 = new infoBar()
-            ui2.back = ()=>{
+            ui2.cancel = ()=>{
                 managerStoreGroupsBar(player,type)
             }
             ui2.title = "删除分组"
-            for(var name of groups){
+            for(var name in groups){
                 ui2.toggle(name,name,false)
             }
             
@@ -3869,10 +4432,11 @@ function managerStoreGroupsBar(player,type){
 
     var groups = []
     groups = config.store.groups
-    for(var g in groups){
+    for(var g of Object.keys(groups)){
+        var gg = g
         ui.btns.push({
-            icon : groups[g],
-            name : g,
+            icon : pictures[groups[gg]],
+            text : gg,
             func : ()=>{
                 managerStoreGroupsBar(player,type)
             }
@@ -3885,7 +4449,7 @@ function managerStoreGroupsBar(player,type){
 function manageStoreBar(player,type = 0){
     var ui = new btnBar()
     ui.title = "管理商店"
-    ui.text = "在这里编辑商店"
+    ui.body = "在这里编辑商店"
     ui.btns = [{
         text : "修改商店页面文字",
         icon : ui_icon.edit,
@@ -3918,11 +4482,14 @@ function manageStoreBar(player,type = 0){
             icon : ui_icon.compass,
             func : ()=>{
                 var ui2 = new infoBar()
-                ui2.back = ()=>{
+                ui2.cancel = ()=>{
+                    manageStoreBar(player,0)
+                }
+                ui2.cancel = ()=>{
                     manageStoreBar(player,0)
                 }
                 ui2.title = "币种"
-                ui2.input("moneys","统计货币的计分板，多个计分板直接用英文分号;间隔，币种名即为计分板名称","输入计分板ID",config.store.moneys)
+                ui2.input("moneys","统计货币的记分版，多个记分版直接用英文分号;间隔，币种名即为记分版名称","输入记分版ID",config.store.moneys)
                 ui2.show(player,(r)=>{
                     config.store.moneys = r.moneys
                     save_config()
@@ -3933,14 +4500,16 @@ function manageStoreBar(player,type = 0){
     }
 
     ui.btns.push({
-        text : "商品设置说明",
+        text : "配置代码说明",
         icon : ui_icon.info,
         func :  () =>{
             confirm(player,array2string([
-                "礼品配置:",
-                "1.输入物品ID,会给予玩家该物品",
-                "2.输入\"chest.x.y.z\"(x/y/z为坐标,维度主世界,该箱子要在常加载区块),会抽取箱子中的物品,物品的数量即为抽到该物品的权重。若物品不可堆叠,则这个物品的下一个物品不在抽取范围内,下一个物品的数量为这个物品的权重。",
-                "3.输入\"score.计分板ID.分数\"可以操作玩家的计分板"
+                "配置类型:",
+                `1.给予玩家物品。\n格式:{"item":"物品ID","amount":物品数量}\n例如:{"item":"minecraft:apple","amount":64}`,
+                `2.抽取箱子中的物品。物品的数量即为抽到该物品的权重，若物品不可堆叠,则这个物品的下一个物品不在抽取范围内,下一个物品的数量为这个物品的权重。箱子必须在主世界的常加载区块。\n格式:{"x":x坐标,"y":y坐标,"z":z坐标,"c":物品数量}"\n例：{"x":0,"y":0,"z":0,"c":5}`,
+                `3.传送。\n格式:{"tp":"tp命令的坐标格式"}\n例如:{"tp":"100 25 67"}、{"tp":"~ ~1000 ~"}`,
+                `4.执行命令\n格式:{"command":["命令1","命令2","命令3"]}  以此类推\n例如:{"command":["say hello","say hi"]}`,
+                `§e注意：代码无效不会返还物品、记分版分数，所以请测试一下代码是否能正常运行！`
             ]),(r)=>{
                 manageStoreBar(player,type)
             })
@@ -3949,9 +4518,89 @@ function manageStoreBar(player,type = 0){
         text : "添加商品",
         icon : ui_icon.add,
         func : ()=>{
-            editGoodBar(player,type)
+            editGoodBar(player,type,{})
         }
     })
+    if(global_goods.length > 0){
+        ui.btns.push({
+        text : "删除商品",
+        icon : ui_icon.delete,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "删除商品"
+            for(var id of global_goods){
+                var g = get_global_good(id)
+                ui2.toggle(id,g.title,false)
+            }
+            ui2.cancel = ()=>{
+                manageStoreBar(player,type)
+            }
+            ui2.show(player,(r)=>{
+                for(var id in r){
+                    if(r[id] === true){
+                        array_clear(global_goods,id)
+                    }
+                }
+                save_global_goods()
+                manageStoreBar(player,type)
+            })
+        }
+    },{
+        text : "刷新商品限量",
+        icon : ui_icon.random,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "刷新商品"
+            for(var id of global_goods){
+                var g = get_global_good(id)
+                ui2.toggle(id,g.title,false)
+            }
+            ui2.cancel = ()=>{
+                manageStoreBar(player,type)
+            }
+            ui2.show(player,(r)=>{
+                for(var id in r){
+                    if(r[id] === true){
+                        update_good(get_global_good(id),true)
+                    }
+                }
+                manageStoreBar(player,type)
+            })
+        }
+    })
+    }
+
+    if(type === 0){
+        for(var id of global_goods){
+            var g = get_global_good(id)
+            ui.btns.push({
+                text : g.title,
+                icon : get_good_icon(g),
+                op : {id : id},
+                func : (op) => {
+                    editGoodBar(player,0,get_global_good(op.id))
+                }
+            })
+        }
+    }
+
+    ui.show(player)
+}
+
+function get_good_icon(g){
+    if(g.icon !== null){
+        return pictures[g.icon]
+    }
+    if(g.custom_icon !== ""){
+        return g.custom_icon
+    }
+    return null
+}
+
+function get_global_good(id){
+    var g = to_object(parse_json(get_data(id)))
+    update_good(g)
+    return g
 }
 
 function get_moneys(){
@@ -3959,44 +4608,292 @@ function get_moneys(){
     return s
 }
 
-function editGoodBar(player,type,good){
-    if(un(good)){
+function selectGoodTypeBar(player,type,good,save){
+    var ui = new infoBar()
+    ui.title = "选择商品类型"
+    ui.options("type","类型",["售卖物品(记录所有特殊值)","收购物品(仅记录物品ID)","礼品"],0)
+    ui.cancel = ()=>{
+        if(type === 0){
+            manageStoreBar(player,type)
+        }else{
+            save(false)
+        }
+    }
+    ui.show(player,(r)=>{
+        good.type = r.type
+        good.id = String(Date.now())
+        editGoodBar(player,type,good,save)
+    })
+}
+
+function editGoodBar(player,type,good,save = function(r){}){
+    var fir = false
+    if(un(good.type)){
         good = {...data_format.good}
     }
+    if(good.type === 9){
+        fir = true
+        selectGoodTypeBar(player,type,good,save)
+        return
+    }
 
-    var groups = ["无"].concat(config.store.groups)
-    var moneys = get_moneys()
+    var groups = ["无"].concat(Object.keys(config.store.groups))
+    var moneys = ["以物易物(仅售卖、礼品有效)"].concat(get_moneys())
+
+    /*
+    {   
+        id : "",
+        state : 0 ,0-在售 1-停售
+        group : "",
+        title : "",
+        index : 0,
+        global_count : 0,
+        personal_count : 0,
+        update_type : 0, 0-不刷新 1-固定时间 2-每小时 3-每天 4-每月
+        update_time : 60, 刷新间隔时间/s，选择固定时间后才有用
+        money : "", 币种,空则为以物易物
+        money_item : "", 以物易物id
+        price : 1, 单价
+        icon : "", 图标
+        custom_icon : "", 自定义图标
+        name : "", 物品名称
+        description : "",物品简介
+        chest : "", 售卖、快速售卖专用,容器id
+        slot : 0, 售卖、快速售卖专用,物品序号id
+        item : "minecraft:", 收购专用,物品id
+        hide : false, 礼品专用，领取后不再显示
+        bar : 0, 条样式
+        count : 1, 售卖专用，一次交易的物品数量,
+        code : "", 售卖、礼品专用，配置
+        back : false
+    }
+    */
 
     var ui = new infoBar()
     ui.title = "编辑商品"
+    ui.cancel = ()=>{
+        if(type === 0){
+            manageStoreBar(player,type)
+        }else{
+            save(false)
+        }
+    }
     ui.options("state","状态",["在售","停售"],good.state)
-    ui.options("group","分组",groups,array_has(groups,good.group)?groups.indexOf(good.group):0)
     ui.input("title","标题","输入标题",good.title)
-    ui.options("type","类型",["售卖手持物品(记录所有特殊值)","收购手持物品(仅记录物品ID)","礼品","快速售卖(不用填名称、描述)"],good.type)
-    ui.input("item_id","礼品配置","输入配置代码",good.item_id)
-    ui.range("count","单次售卖物品数量/收购最低数量/礼品单物品数量",1,64,1,good.count)
-    ui.input("item_name","交易(或物品)名称","输入名称",good.item_name)
-    ui.input("description","交易描述","输入描述",good.description)
-    ui.options("money","币种",moneys,array_has(moneys,good.money)?groups.indexOf(good.money):0)
-    ui.input("price","单次交易价格","价格必须为整数或0",String(good.price))
-    ui.input("custom_icon","自定义路径图标","输入路径，如textures/items/totem.png",good.custom_icon)
-    add_pictures_choice(ui,"预选图标（预选图标优先级大于自定义图标）",good.icon)
-    ui.input("global_count","全图限量","总限量数,0则不限量",String(good.global_count))
-    ui.input("personal_count","玩家限量","总限量数,0则不限量",String(good.personal_count))
-    ui.options("update_type","刷新方案(不限量不需要填)",["不刷新","隔固定时间刷新","每小时整更新","每天0点更新","每月1日更新"],good.update_type)
+    if(type === 0){
+        ui.options("group","分组",groups,(array_has(groups,good.group)?groups.indexOf(good.group):0))
+        ui.range("index","优先级(越高显示在越前面,相同时随机排列)",0,100,1,good.index)
+    }
+    ui.input("global_count","全图限量(限制交易次数，不是物品数量)","总限量数,0则不限量",String(good.global_count))
+    ui.input("personal_count","玩家限量(限制交易次数，不是物品数量)","总限量数,0则不限量",String(good.personal_count))
+    ui.options("update_type","限量刷新方案(不限量不需要填)",["不刷新","隔固定时间刷新","每小时整更新","每天0点更新","每月1日更新"],good.update_type)
     ui.input("update_time","刷新间隔时间/秒(仅选择\"隔固定时间刷新\"才填)","时间/秒",String(good.update_time))
-    ui.toggle("hide","售馨(包括个人限量与全图限量)之后隐藏该交易(适用于礼品)",good.hide)
-    ui.range("index","优先级(越高显示在越前面,相同时随机排列)",0,100,1,good.index)
+    ui.options("money","币种",moneys,array_has(moneys,good.money)?moneys.indexOf(good.money):0)
+    ui.input("money_item","以物易物时用于交换的物品ID","",good.money_item)
+    ui.input("price","单价(记分版分数/交换物品数量)","价格必须为整数或0",String(good.price))
+    add_pictures_choice(ui,"预选图标（预选图标优先级大于自定义图标）",good.icon)
+    ui.input("custom_icon","自定义路径图标","输入路径，如textures/items/totem.png",good.custom_icon)
+    ui.input("name","交易(或物品)名称","输入名称",good.name)
+    ui.input("description","交易描述","输入描述",good.description)
+    ui.toggle("back","交易后[关闭页面|返回上一页面]",good.back)
+    
 
-    ui.show(player)
+    switch(good.type){
+        case 0:
+            ui.options("op","操作售卖的物品",["不变(第一次设置时不要选这个)","更改为当前手持物品","更改为物品栏第1个物品","更改为物品栏第2个物品","更改为物品栏第3个物品","更改为物品栏第4个物品","更改为物品栏第5个物品","更改为物品栏第6个物品","更改为物品栏第7个物品","更改为物品栏第8个物品","更改为物品栏第9个物品"],(good.chest === "" ? 1 : 0))
+            ui.range("count","单次售卖物品数量",1,64,1,good.count)
+            ui.options("bar","玩家选择交易数量的样式",["手动输入","范围条(1-10)","范围条(1-16)","范围条(1-64)","范围条(1-256)","快速售卖(点击标题立即购买)"],good.bar)
+            ui.input("code","§e配置代码(用于实现特殊功能，填写后将覆盖原本售卖的物品，如果你不知道请勿填写)","",good.code)
+        break
+        case 1:
+            ui.input("item","收购的物品ID","输入物品id，需要前缀",good.item)
+            ui.options("bar","玩家选择交易数量的样式",["手动输入(推荐)","范围条(1-10)","范围条(1-16)","范围条(1-64)","范围条(1-256)"],good.bar)
+        break
+        case 2:
+            ui.input("code","§e配置代码","",good.code)
+            ui.toggle("hide","领取完后隐藏",good.hide)
+        break
+    }
+    
+    ui.show(player,(r)=>{
+        good.state = r.state
+        good.updated = Date.now()
+        if(type === 0){
+            good.group = (r.group === 0) ? "" : groups[r.group]
+            good.index = Math.round(r.index)
+        }
+        good.title = r.title
+        good.global_count = to_number(parseInt(r.global_count),good.global_count)
+        good.last = good.global_count
+        good.personal_count = to_number(parseInt(r.personal_count),good.personal_count)
+        good.update_type = r.update_type
+        good.update_time = to_number(parseInt(r.update_time),good.update_time)
+        if(r.money === 0){
+            good.money = ""
+        }else{
+            good.money = moneys[r.money]
+        }
+        good.money_item = r.money_item
+        good.price = to_number(parseInt(r.price),good.price)
+        good.icon = r.icon
+        good.custom_icon = r.custom_icon
+        good.name = r.name
+        good.description = r.description
+        good.back = r.back
+        switch(good.type){
+            case 0:
+                good.count = Math.round(r.count)
+                good.bar = r.bar
+                good.code = r.code
+                if(r.op !== 0){
+                    var item = get_player_hand_item(player)
+                    if(r.op >= 2){
+                        item = player.slots.getItem(r.op-2)
+                    }
+                    if(un(item)){
+                        chat("§e无法获取手持物品，售卖物品更改失败！",[player],false)
+                    }else{
+                        set_store_item(item,(chest,slot)=>{
+                            good.chest = chest
+                            good.slot = slot
+                            save_data(good.id,to_json(good))
+                        })
+                    }
+                }
+                
+            break
+            case 1:
+                good.item = r.item
+                good.bar = r.bar
+            break
+            case 2:
+                good.code = r.code
+                good.hide = r.hide
+            break
+        }
+
+        if(type === 0){
+            save_data(good.id,to_json(good))
+            if(!array_has(global_goods,good.id)){
+                global_goods.push(good.id)
+                save_global_goods()
+            }
+            manageStoreBar(player,type)
+        }else{
+            save(good,true)
+        }
+        
+    })
 }
 
-function globalStoreBar(player){
+var working_pool = []
+function set_store_item(item,func = function(_chest,_slot){}){
+    working_pool.push({
+        type : 0,
+        item : item,
+        func : func
+    })
+} 
+function get_store_item(chest,slot,func = function(_item){}){
+    if(chest === ""){return}
+    working_pool.push({
+        type : 1,
+        chest : chest,
+        slot : slot,
+        func : func
+    })
+} 
+
+
+system_ids.works = system.runInterval(()=>{
+    try{
+        var block = overworld.getBlock({x:5,y:319,z:5})
+        if(un(block)){
+            overworld.runCommand("tickingarea add 0 0 0 15 0 15 USF")
+        }
+    }catch(err){
+        overworld.runCommand("tickingarea add 0 0 0 15 0 15 USF")
+    }
+    if(working_pool.length > 0){
+        try{
+            var c = working_pool[0]
+            if(c.type === 0){
+                var chest = ""
+                for(var key of chests){
+                    if(key.indexOf("*") !== 0){
+                        chest = key
+                        break
+                    }
+                }
+                var str
+                if(chest === ""){
+                    var id = "usf:" + String(Date.now())
+                    var block = overworld.getBlock({x:5,y:319,z:5})
+                    block.setType("minecraft:chest")
+                    var com = block.getComponent("minecraft:inventory")
+                    com.container.setItem(0,c.item)
+                    str = world.structureManager.createFromWorld(id,overworld,{x:5,y:319,z:5},{x:5,y:319,z:5},{saveMode:"World",includeBlocks:true,includeEntities:false})
+                    str.saveToWorld()
+                    overworld.runCommand("setblock 5 319 5 air")
+
+                    chests.push(id)
+                    save_data("chests",to_json(chests))
+
+                    c.func(id,0)
+                    working_pool.splice(0,1)
+                }else{
+                    world.structureManager.place(chest,overworld,{x:5,y:319,z:5})
+                    var block = overworld.getBlock({x:5,y:319,z:5})
+                    var com = block.getComponent("minecraft:inventory")
+                    var first = get_first_empty(com.container)
+                    com.container.setItem(first,c.item)
+
+                    if(com.container.emptySlotsCount === 0){
+                        array_clear(chests,chest)
+                        chests.push("*" + chest)
+                        save_data("chests",to_json(chests))
+                    }
+                    world.structureManager.delete(chest)
+                    str = world.structureManager.createFromWorld(chest,overworld,{x:5,y:319,z:5},{x:5,y:319,z:5},{saveMode:"World",includeBlocks:true,includeEntities:false})
+                    str.saveToWorld()
+
+                    overworld.runCommand("setblock 5 319 5 air")
+
+                    c.func(chest,first)
+                }
+            }else{
+                world.structureManager.place(c.chest,overworld,{x:5,y:319,z:5})
+                var block = overworld.getBlock({x:5,y:319,z:5})
+                var com = block.getComponent("minecraft:inventory")
+                var item = com.container.getItem(c.slot)
+                overworld.runCommand("setblock 5 319 5 air")
+                
+                c.func(item)
+            }
+        }catch(err){}
+        working_pool.splice(0,1)
+    }
+},5)
+
+function get_first_empty(container){
+    if(container.emptySlotsCount === 0){
+        return -1
+    }
+    for(var i=0;i<container.size;i++){
+        if(un(container.getItem(i))){
+            return i
+        }
+    }
+
+    return -1
+}
+
+function storeBar(player,type = 0,group = ""){
     var ui = new btnBar()
     ui.title = "商店"
-    ui.text = to_array(parse_json(get_data("global_store_text")),["商店"])
+    ui.body = tran_text(player,to_array(parse_json(get_data("global_store_text")),["商店"]))
     
-    if(get_op_level(player) >= 1){
+    if(get_op_level(player) >= 1 && type === 0){
         ui.btns.push({
             text : "管理全局商店",
             icon : ui_icon.setting,
@@ -4006,8 +4903,1062 @@ function globalStoreBar(player){
         })
     }
 
+    if(group === ""){
+        var groups = Object.keys(config.store.groups)
+        for(var g of groups){
+            ui.btns.push({
+                text : g,
+                op : {g : g},
+                icon : (typeof(config.store.groups[g]) === "string" ? pictures[config.store.groups[g]] : null),
+                func : (op)=>{
+                    storeBar(player,type,op.g)
+                }
+            })
+        }
+    }else{
+        ui.btns.push({
+            text : "返回",
+            icon : ui_icon.back,
+            func : ()=>{
+                storeBar(player,type)
+            }
+        })
+    }
+
+    var goods = []
+    if(type === 0){
+        for(var id of global_goods){
+            var g = get_global_good(id)
+            if(g.group === group && g.state === 0){
+                if(((get_personal_buy(player,g) >= g.personal_count && g.personal_count > 0) || (g.last === 0 && g.global_count > 0)) && g.hide){
+                }else{
+                    goods.push(g)
+                }
+                
+            }
+        }
+    }
+    var btns = []
+    for(var g of goods){
+        if(btns.length === 0){
+            btns.push({
+                text :  g.title,
+                icon : get_good_icon(g),
+                op : {id : g.id , index : g.index},
+                func : (op)=>{
+                    dealGoodBar(player,0,group,op.id)
+                }
+            })
+        }else{
+            for(var i=0;i<=btns.length;i++){
+                if(i<btns.length){
+                    if(g.index > btns[i].op.index){
+                        btns.splice(i,0,{
+                            text : g.title,
+                            icon : get_good_icon(g),
+                            op : {id : g.id , index : g.index},
+                            func : (op)=>{
+                                dealGoodBar(player,0,group,op.id)
+                            }
+                        })
+                        break
+                    }
+                }else{
+                    btns.push({
+                        text : g.title,
+                        icon : get_good_icon(g),
+                        op : {id : g.id , index : g.index},
+                        func : (op)=>{
+                            dealGoodBar(player,0,group,op.id)
+                        }
+                    })
+                    break
+                }
+            }
+        }
+    }
+    ui.btns = ui.btns.concat(btns)
+
     ui.show(player)
 
+}
+
+function update_good(g,force = false){
+    var date = new Date(g.updated)
+    var now = new Date(Date.now())
+    if(force){
+        g.last = g.global_count
+        g.updated = Date.now()
+    }
+    switch(g.update_type){
+        case 1:
+            if(Date.now() - g.updated >= g.update_time * 1000){
+                g.last = g.global_count
+                g.updated = Date.now()
+            }
+        break
+        case 2:
+            if(now.getHours() !== date.getHours() || now.getDate() !== date.getDate() || date.getMonth() !== now.getMonth()){
+                g.last = g.global_count
+                g.updated = Date.now()
+            }
+        break
+        case 3:
+            if(now.getDate() !== date.getDate() || date.getMonth() !== now.getMonth()){
+                g.last = g.global_count
+                g.updated = Date.now()
+            }
+        break
+        case 4:
+            if(date.getMonth() !== now.getMonth()){
+                g.last = g.global_count
+                g.updated = Date.now()
+            }
+        break
+    }
+
+    save_global_good(g)
+}
+
+function save_global_good(g){
+    save_data(g.id,to_json(g))
+}
+
+function dealGoodBar(player,type,group,id,back = function(){}){
+    var good = {}
+    if(type !== 2){
+        good = get_global_good(id)
+    }else{
+        good = id
+    }
+    var board
+    if(good.money !== ""){
+        board = world.scoreboard.getObjective(good.money)
+        if(un(board)){
+            chat("§e[商店系统]配置错误！币种不存在！",[player])
+            return
+        }
+    }else{
+        if(good.type === 1){
+            chat("§e[商店系统]配置错误！币种不存在！",[player])
+            return
+        }
+    }
+    if(good.type === 0){
+        if(good.chest === ""){
+            chat("§e[商店系统]配置错误！售卖物品未录入！",[player])
+            return
+        }
+    }
+    var text = [
+        `§e商品名:§r${good.name}`,
+        `§e商品描述:§r${good.description}`,
+        `§e限量:§r${(good.global_count === 0)?"无限":String(good.global_count - good.last)+"/"+String(good.global_count)}`,
+        `§e个人限量:§r${(good.personal_count === 0)?"无限":String(get_personal_buy(player,good))+"/"+String(good.personal_count)}`,
+    ]
+
+    switch(good.type){
+        case 0:
+            if(good.money === ""){
+                text.push("§e货币物品:§r" + good.money_item)
+                text.push("§e需要的物品数量(价格):§r" + String(good.price))
+            }else{
+                text.push("§e货币:§r" + board.displayName)
+                text.push("§e价格:§r" + String(good.price))
+            }
+        break
+        case 1:
+            if(good.money === ""){
+                chat("§e[商店系统]配置错误！",[player])
+                return
+            }else{
+                text.push("§e货币:§r" + board.displayName)
+                text.push("§e回收价格/个:§r" + String(good.price))
+            }
+        break
+    }
+    if(!un(player.store_record[good.id])){
+        if(player.store_record[good.id].updated !== good.updated){
+            player.store_record[good.id].count = 0
+            player.store_record[good.id].updated = good.updated
+            save_store_record(player)
+        }
+    }
+    if((get_personal_buy(player,good) >= good.personal_count && good.personal_count > 0) || (good.last === 0 && good.global_count > 0)){
+        if(good.type === 0 && good.bar === 5){
+            chat("§e[商店系统]已售馨！",[player])
+            return
+        }
+        text.push("\n§e已售馨！")
+        var ui = new btnBar()
+        ui.title = good.name
+        ui.body = tran_text(player,text)
+        if(type === 0 && good.back){
+        ui.cancel = ()=>{
+            storeBar(player,0,group)
+        }
+        }
+        if(type > 0){
+            ui.cancel = ()=>{
+                back()
+            }
+        }
+        ui.btns = [{
+            text : "返回",
+            icon : ui_icon.back,
+            func : ()=>{
+                storeBar(player,dara,group)
+            }
+        }]
+        ui.show(player)
+    }else{
+        if(good.bar === 5){
+            dealOrderBar(player,good,{count : 1,one_count:good.count})
+            return
+        }
+
+
+        var ui = new infoBar()
+        ui.title = good.name
+        var trade_text = "购买数量"
+        if(good.type === 1){
+            trade_text = "收购数量(1-512)"
+        }
+        if(good.type === 2){
+            var ui = new btnBar()
+            ui.title = good.name
+            ui.body = text
+            ui.btns = [{
+                text : "领取",
+                func : () => {
+                    dealOrderBar(player,good)
+                }
+            }]
+            ui.show(player)
+            return
+        }
+        if(type === 0 && good.back){
+            ui.cancel = ()=>{
+                storeBar(player,0,group)
+            }
+            }
+            if(type > 0){
+                ui.cancel = ()=>{
+                    back()
+                }
+            }
+        //["手动输入","范围条(1-10)","范围条(1-16)","范围条(1-64)","范围条(1-256)","快速售卖(点击标题立即购买)"
+        switch(good.bar){
+            case 0:
+                ui.input("count",array2string(text) + "\n\n" + trade_text,"输入整数","1")
+                break
+            case 1:
+                ui.range("count",array2string(text) + "\n\n" + trade_text,1,10,1,1)
+                break
+            case 2:
+                ui.range("count",array2string(text) + "\n\n" + trade_text,1,16,1,1)
+                break
+            case 3:
+                ui.range("count",array2string(text) + "\n\n" + trade_text,1,64,1,1)
+                break
+            case 4:
+                ui.range("count",array2string(text) + "\n\n" + trade_text,1,256,1,1)
+                break
+        }
+        ui.show(player,(r)=>{
+            var count = r.count
+            if(is_string(count)){
+                count = parseInt(count)
+            }
+            count = to_number(count,0)
+            if(count <= 0 || count > 512){
+                chat("§e[商店系统]无法解析数量!",[player])
+            }else{
+                if((good.global_count === 0 || count <= good.last) && (good.personal_count === 0 || good.personal_count - get_player_store_record_count(player,id) >= count)){
+                    dealOrderBar(player,good,{count : count,one_count:good.count})
+                }
+                else{
+                    chat("§e[商店系统]数量超过限制!",[player])
+                }
+            }
+
+            if(type === 0 && good.back){
+                storeBar(player,0,group)
+            }
+            if(type > 0){
+                back()
+            }
+        })
+    }
+}
+function get_player_store_record_count(player,id){
+    if(un(player.store_record[id])){
+        return 0
+    }else{
+        return player.store_record[id].count
+    }
+}
+function deal_money(player,good,price){
+    var id = good.money
+    if(id === ""){
+        var con = player.getComponent("minecraft:inventory").container
+        return container_remove(con,good.money_item,price)
+    }else{
+        var board = world.scoreboard.getObjective(id)
+        return board_reduce(player,board,price)
+    }
+}
+
+function dealOrderBar(player,good,data = {count : 1}){
+    switch(good.type){
+        case 2:
+            if(deal_money(player,good,good.price)){
+                run_code(player,good.code)
+            }else{
+                chat("§e[商店系统]条件不足,领取失败！",[player])
+            }
+        break
+        case 1:
+            var con = player.getComponent("minecraft:inventory").container
+            if(container_remove(con,good.item,data.count)){
+                var board = world.scoreboard.getObjective(good.money)
+                board_add(player,board,good.price * data.count)
+            }else{
+                chat("§e[商店系统]物品不足,收购失败！",[player])
+            }
+        break
+        case 0:
+            var c = data.count * good.price
+            if(good.money !== ""){
+                c = data.count * good.price
+            }
+            if(deal_money(player,good,c)){
+                if(good.code !== ""){
+                    for(var i=0;i<data.count;i++){
+                        run_code(player,good.code)
+                    }
+                }
+                else{
+                    get_store_item(good.chest,good.slot,(item)=>{
+                        item.amount = 1 
+                        for(var i=0;i<data.count*data.one_count;i++){
+                            player.dimension.spawnItem(item,player.location)
+                        }
+                    })
+                }
+            }else{
+                chat("§e[商店系统]条件不足,购买失败！",[player])
+            }
+        break
+    }
+
+    if(good.global_count > 0){
+        good.last = good.last - data.count
+        save_global_good(good)
+    }
+    if(good.personal_count > 0){
+        if(un(player.store_record[good.id])){
+            player.store_record[good.id] = {
+                updated : good.updated,
+                count : data.count
+            }
+        }else{
+            player.store_record[good.id].count = data.count + player.store_record[good.id].count
+        }
+        save_store_record(player)
+    }
+}
+
+function run_code(player,code){
+    try{
+    code = parse_json(code)
+    if(Object.keys(code) === 0){
+        return chat("§e[商店系统]解析失败！",[player])
+    }
+
+    if(is_number(code.x) && is_number(code.y) && is_number(code.z) && is_number(code.c)){
+        var block = overworld.getBlock(code)
+        var con = block.getComponent("minecraft:inventory").container
+        var weights = []
+        var total = 0
+        for(var i=0;i<con.size;i++){
+            var item = con.getItem(i)
+            if(!un(item)){
+                if(item.maxAmount === 1){
+                    var amount = item.amount
+                    var item2 = con.getItem(i+1)
+                    if(!un(item2)){
+                        amount = item2.amount
+                        weights.push(amount)
+                        weights.push(0)
+                        total += amount
+                        i += 1
+                    }
+                }else{
+                    weights.push(item.amount)
+                    total += item.amount
+                }
+            }else{
+                weights.push(0)
+            }
+        }
+
+        for(var i=0;i<code.c;i++){
+            var r = random_int(total) + 1
+            for(var cf=0;cf<weights.length;cf++){
+                r -= weights[cf]
+                if(r <= 0){
+                    var item = con.getItem(cf)
+                    item.amount = 1
+                    player.dimension.spawnItem(item,player.location)
+                    break
+                }
+            }
+        }
+    }
+
+    if(is_string(code.tp)){
+        player.runCommand(`tp @s ${code.tp}`)
+    }
+
+    if(is_array(code.command)){
+        for(var i=0;i<code.command.length;i++){
+            if(is_string(code.command[i])){
+                player.runCommand(code.command[i])
+            }
+        }
+    }
+
+    if(is_string(code.item) && is_number(code.amount)){
+        if(code.amount > 512){
+            code.amount = 512
+        }
+        var item = new ItemStack(code.item,1)
+        for(var i=0;i<code.amount;i++){
+            var con = player.getComponent("minecraft:inventory").container
+            player.dimension.spawnItem(item,player.location)
+        }
+    }
+    }catch(err){chat("§e[商店系统]运行失败！",[player])
+        log("§e[商店系统]运行失败！错误:"+err,[],"warn")
+    }
+}
+
+function board_reduce(goal,board,score,force = false){
+    if(get_score(board,goal) >= score || force){
+        board.setScore(goal,get_score(board,goal) - score)
+        return true
+    }
+    return false
+}
+
+function board_add(goal,board,score){
+    board.setScore(goal,get_score(board,goal) + score)
+}
+
+function container_remove(con,id,count){
+    var total = 0
+    var slots = []
+    for(var i=0;i<con.size;i++){
+        var item = con.getItem(i)
+        if(!un(item)){
+            if(item.typeId === id){
+                slots.push(con.getSlot(i))
+                total += item.amount
+            }
+        }
+    }
+    
+    if(total >= count){
+        for(var slot of slots){
+            if(slot.amount > count){
+                slot.amount -= count
+                count = 0
+            }
+            else{
+                count -= slot.amount
+                slot.setItem()
+            }
+        }
+        return true
+    }
+    return false
+}
+
+function get_personal_buy(player,g){
+    if(un(player.store_record[g.id])){
+        return 0
+    }
+    var c = player.store_record[g.id]
+    if(c.updated !== g.updated){
+        c.count = 0
+        c.updated = g.updated
+        save_store_record(player)
+        return 0
+    }
+    return c.count
+}
+
+function get_good_type(g){
+    switch(g.type){
+        case 0 :
+            if(g.global_count > 0 && g.last === 0){
+                return "[售馨]"
+            }
+            return "[售卖]"
+            break
+        case 1 :
+            return "[收购]"
+            break
+        case 2 :
+            return "[礼包]"
+            break
+    }
+}
+
+function editConfigFileBar(player){
+    if(get_op_level(player) < 1){
+        return
+    }
+
+    if(Date.now() - to_number(player.last_cf) < 1000){
+        return
+    }else{
+        player.last_cf = Date.now()
+    }
+
+    var slot = get_player_offhand_slot(player)
+    if(un(slot) || !slot.hasItem()){
+        return
+    }
+    var data = to_object(parse_json(get_data("data",slot)))
+    if(un(data.title)){
+        object_override(data,data_format.config_file)
+    }
+    var ui = new btnBar()
+    ui.title = "编辑策略文件"
+    ui.body = ["更改此策略文件","注意：策略文件应用后无法直接通过设置界面修改，请妥善保存策略文件物品"]
+    ui.btns = [{
+        text : "修改配置",
+        icon : ui_icon.compass,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "策略文件的配置设置"
+            ui2.cancel = ()=>{
+                editConfigFileBar(player)
+            }
+            ui2.input("name","策略文件的物品名(仅用于备注)","输入名字",to_string(slot.nameTag))
+            ui2.input("title","策略文件标题","输入标题，显示在页面顶上",data.title)
+            ui2.input("body","策略文件界面内容","输入内容",data.body)
+            ui2.options("operation","关闭二级菜单后的操作",["返回菜单","关闭页面"],to_number(data.operation,0))
+            ui2.show(player,(r)=>{
+                data.title = r.title
+                data.body = r.body
+                data.operation = r.operation
+                if(r.name === ""){
+                    slot.nameTag = undefined
+                }else{
+                    slot.nameTag = r.name
+                }
+                save_data("data",to_json(data),slot)
+                editConfigFileBar(player)
+            })
+        }
+    },{
+        text : "二级菜单",
+        icon : ui_icon.copy,
+        func : ()=>{
+            editConfigSecondBar(player,slot,data)
+        }
+    },{
+        text : "添加按钮",
+        icon : ui_icon.add,
+        func : ()=>{
+            editBtnBar(player,slot,data,data.things.length)
+        }
+    }]
+
+    if(data.things.length > 0){
+        ui.btns.push({
+            text : "删除按钮",
+            icon : ui_icon.delete,
+            func : ()=>{
+                var ui2 = new infoBar()
+                ui2.title = "删除按钮"
+                for(var t=0;t<data.things.length;t++){
+                    ui2.toggle("b",data.things[t].title,false)
+                }
+                ui2.cancel = ()=>{
+                    editConfigFileBar(player)
+                }
+                ui2.show(player,(r)=>{
+                    var goals = []
+                    if(is_bool(r.b)){
+                        if(r.b){
+                            data.things = []
+                        }
+                    }else{
+                         for(var i=0;i<r.b.length;i++){
+                            if(r.b[i] === true){
+                                goals.push(data.things[i])
+                            }
+                        }
+                    }
+                    for(var btn of goals){
+                        array_clear(data.things,btn)
+                    }
+                   
+                    save_data("data",to_json(data),slot)
+                    editConfigFileBar(player)
+                })
+            }
+        })
+        ui.btns.push({
+            text : "预览",
+            icon : ui_icon.eye,
+            func : ()=>{
+                showConfigBar(player,data)
+            }
+        })
+    }
+
+    for(var i=0;i<data.things.length;i++){
+        var btn = data.things[i]
+        ui.btns.push({
+            text : btn.title,
+            icon : get_good_icon(btn),
+            op : {index : i},
+            func : (op)=>{
+                editBtnBar(player,slot,data,op.index)
+            }
+        })
+    }
+
+    ui.show(player)
+}
+
+function showConfigBar(player,data,group = ""){
+    if(data.things.length === 0){
+        return
+    }
+
+    var ui = new  btnBar()
+    ui.title = data.title
+    ui.body = tran_text(player,data.body)
+    if(group !== "" && data.operation === 0){
+        ui.cancel = ()=>{
+            showConfigBar(player,data,"")
+        }
+    }
+
+    if(group === ""){
+        for(var name in data.groups){
+            ui.btns.push({
+                text : name,
+                icon : (data.groups[name] === "")?null:pictures[data.groups[name]],
+                op : {name : name},
+                func : (op)=>{
+                    showConfigBar(player,data,op.name)
+                }
+            })
+        }
+    }else{
+        ui.btns.push({
+            text : "返回",
+            icon : ui_icon.back,
+            func : ()=>{
+                showConfigBar(player,data,"")
+            }
+        })
+    }
+
+    var btns = []
+    for(var btn of data.things){
+        if(btn.group === group){
+            if(to_string(btn.tag) === "" || player.hasTag(to_string(btn.tag))){
+                btns.push(btn)
+            }
+        }
+    }
+    if(btns.length === 0){
+        if(group === ""){
+            if(data.groups.length === 0){
+                return
+            }
+        }else{
+            showConfigBar(player,data,"")
+            return
+        }
+    }
+
+    var ui_btns = ui.btns
+    for(var btn of btns){
+        if(ui_btns.length === 0){
+            ui_btns.push({
+                text : btn.title,
+                icon : get_good_icon(btn),
+                op : btn,
+                func : (op)=>{
+                    run_btn(player,op,data,group)
+                }
+            })
+        }else{
+            for(var i=0;i<=ui_btns.length;i++){
+                if(i<ui_btns.length){
+                    if(btn.index > ui_btns[i].op.index){
+                        ui_btns.splice(i,0,{
+                            text : btn.title,
+                            icon : get_good_icon(btn),
+                            op : btn,
+                            func : (op)=>{
+                                run_btn(player,op,data,group)
+                            }
+                        })
+                        break
+                    }
+                }else{
+                    ui_btns.push({
+                        text : btn.title,
+                        icon : get_good_icon(btn),
+                        op : btn,
+                        func : (op)=>{
+                            run_btn(player,op,data,group)
+                        }
+                    })
+                    break
+                }
+            }
+        }
+    }
+    /* for(var btn of btns){
+        ui.btns.push({
+            text : btn.title,
+            icon : get_good_icon(btn),
+            op : btn,
+            func : (op)=>{
+                run_btn(player,op,data,group)
+            }
+        })
+    } */
+    ui.show(player)
+}
+
+function run_btn(player,btn,data,group){
+    switch(btn.type){
+        case 0:
+            var commands = to_array(parse_json(btn.command))
+            for(var c of commands){
+                player.runCommand(c)
+            }
+            if(btn.operation === 0){
+                showConfigBar(player,data,group)
+            }
+            break
+        case 3:
+            dealGoodBar(player,1,"",btn.gid,()=>{
+                if(btn.operation === 0){
+                    showConfigBar(player,data,group)
+                }
+            })
+            break
+        case 2:
+            viewPosBar(player,btn.pos,false,new btnBar(),()=>{},()=>{
+                if(btn.operation === 0){
+                    showConfigBar(player,data,group)
+                }
+            })
+        break
+        case 4:
+            var ui =new btnBar()
+            ui.title = btn.page_title
+            ui.body = tran_text(player,btn.page)
+            ui.cancel = ()=>{
+                if(btn.operation === 0){
+                    showConfigBar(player,data,group)
+                }
+            }
+            ui.btns = [{
+                text : "关闭",
+                icon : ui_icon.delete,
+                func : ()=>{
+                    if(btn.operation === 0){
+                        showConfigBar(player,data,group)
+                    }
+                }
+            }]
+            ui.show(player)
+        break
+        case 1:
+            dealGoodBar(player,2,"",btn.good,()=>{
+                if(btn.operation === 0){
+                    showConfigBar(player,data,group)
+                }
+            })
+        break
+        case 5:
+            posBar(player)
+            break
+        case 6:
+            setChatBar(player)
+            break
+        case 7:
+            landBar(player,player)
+            break
+        case 8:
+            groupsBar(player)
+            break
+        case 9:
+            storeBar(player,0,"")
+            break
+        case 10:
+            tranBar(player)
+            break
+        case 11:
+            show_board(player,null,false)
+            break
+}
+}
+
+function editBtnBar(player,slot,data,index){
+    var btn = {}
+    if(index < data.things.length){
+        btn = data.things[index]
+    }
+    if(un(btn.index)){
+        var ui = new infoBar()
+        ui.title = "设置操作类型"
+        ui.cancel = ()=>{
+            editConfigFileBar(player)
+        }
+        ui.options("op","按钮操作",["执行命令","新商品","传送点","链接至全局商店的商品","确认页面",
+            "打开传送系统",
+            "打开聊天设置",
+            "打开领地系统",
+            "打开群组系统",
+            "打开商店系统",
+            "打开转账机",
+            "打开公告",
+        ],0)
+        ui.show(player,(r)=>{
+            btn.type = r.op
+            btn.group = ""
+            btn.title = ""
+            btn.custom_icon = ""
+            btn.icon = ""
+            btn.tag = ""
+            btn.index = 0
+            editBtnBar2(player,slot,data,btn,true)
+        })
+    }else{
+        editBtnBar2(player,slot,data,btn,false)
+    }
+}
+
+function editBtnBar2(player,slot,data,btn,save = false){
+    var groups = ["无"].concat(Object.keys(data.groups))
+    var ui = new infoBar()
+    ui.title = "设置按钮配置"
+    ui.cancel = ()=>{
+        editConfigFileBar(player)
+    }
+    ui.options("group","按钮所属二级菜单",groups,array_has(groups,btn.group)?array_index(groups,btn.group):0)
+    ui.input("title","按钮标题","标题",btn.title)
+    ui.range("index","优先级(越高显示在越前面,相同时随机排列)",0,100,1,btn.index)
+    add_pictures_choice(ui,"预选图标（预选图标优先级大于自定义图标）",btn.icon)
+    ui.input("custom_icon","自定义路径图标","输入路径，如textures/items/totem.png",btn.custom_icon)
+    ui.options("operation","执行按钮后的操作",["返回菜单","关闭页面"],to_number(btn.operation,0))
+    ui.input("tag","标签(含该标签玩家才会显示)(不支持多标签)","标签",to_string(btn.tag))
+    ui.show(player,(r)=>{
+        btn.title = r.title
+        btn.icon = r.icon
+        btn.custom_icon = r.custom_icon
+        btn.index = Math.round(r.index)
+        btn.operation = r.operation
+        btn.tag = r.tag
+        if(r.group === 0){
+            btn.group = ""
+        }else{
+            btn.group = groups[r.group]
+        }
+
+        editBtnBar3(player,slot,data,btn,save)
+    })
+}
+
+function editBtnBar3(player,slot,data,btn,save = false){
+    var ui = new infoBar()
+    ui.title = "设置按钮配置"
+    ui.cancel = ()=>{
+        editConfigFileBar(player)
+    }
+
+    var names = []
+    var ids = []
+    if(btn.type === 3){
+        for(var id of global_goods){
+            var g = get_global_good(id)
+            names.push(g.name)
+            ids.push(id)
+        }
+    }
+
+    switch(btn.type){
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+            if(save){
+                data.things.push(btn)
+            }
+            save_data("data",to_json(data),slot)
+            editConfigFileBar(player)
+            return
+        case 0:
+            ui.input("command",'执行的命令\n格式:["命令1","命令2","命令3"]',"输入命令数组",to_string(btn.command))
+            break
+        case 1:
+            var good = {}
+            if(!save){
+                good = btn.good
+            }
+            editGoodBar(player,1,good,(g,r)=>{
+                if(r){
+                    btn.good = g
+                    if(save){
+                        data.things.push(btn)
+                    }
+                    save_data("data",to_json(data),slot)
+                }
+                editConfigFileBar(player)
+            })
+            return
+            break
+        case 2:
+            var new_pos = {}
+            if(!un(btn.pos)){
+                new_pos = btn.pos
+            }
+            editPosBar(player,new_pos,()=>{
+                if(save){
+                    btn.pos = new_pos
+                    data.things.push(btn)
+                }
+                save_data("data",to_json(data),slot)
+            },()=>{
+                editConfigFileBar(player)
+            })
+            return
+        case 4:
+            ui.input("page_title","页面标题","标题",to_string(btn.page_title))
+            ui.input("page","页面内容","内容",to_string(btn.page))
+            break
+        case 3:
+            if(ids.length === 0){
+                confirm(player,"当前无全局商品可绑定！",(r)=>{
+                    editConfigFileBar(player)
+                })
+                return
+            }
+            ui.options("gid","绑定的商品",names,array_has(ids,to_string(btn.gid))?array_index(ids,btn.gid):0)
+            break
+    }
+    ui.show(player,(r)=>{
+        switch(btn.type){
+            case 0:
+                btn.command = r.command
+                break
+            case 4:
+                btn.page_title = r.page_title
+                btn.page = r.page
+                break
+            case 3:
+                btn.gid = ids[r.gid]
+                break
+        }
+        if(save){
+            btn.pos = new_pos
+            data.things.push(btn)
+        }
+        save_data("data",to_json(data),slot)
+        editConfigFileBar(player)
+    })
+}
+
+function editConfigSecondBar(player,slot,data){
+    var ui = new btnBar()
+    ui.title = "编辑二级菜单"
+    ui.body = ["管理二级菜单","注意：菜单添加后不能修改，只能删除重新添加"]
+    ui.cancel = ()=>{
+        editConfigFileBar(player)
+    }
+    ui.btns = [{
+        text : "新增二级菜单",
+        icon : ui_icon.add,
+        func : ()=> {
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                editConfigSecondBar(player,slot,data)
+            }
+            ui2.title = "新增二级菜单"
+            ui2.input("name","菜单名称","名称","")
+            add_pictures_choice(ui2,"选择图标")
+            ui2.show(player,(r)=>{
+                if(r.name === ""){
+                    tip(player,"菜单名称不能为空！",()=>{
+                        editConfigSecondBar(player,slot,data)
+                    })
+                    return
+                }
+
+                data.groups[r.name] = r.icon
+                save_data("data",to_json(data),slot)
+                editConfigSecondBar(player,slot,data)
+            })
+        }
+    },{
+        text : "删除二级菜单",
+        icon : ui_icon.delete,
+        func : ()=> {
+            var groups = data.groups
+
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                editConfigSecondBar(player,slot,data)
+            }
+            ui2.title = "删除二级菜单"
+            for(var name in groups){
+                ui2.toggle(name,name,false)
+            }
+            
+            ui2.show(player,(r)=>{
+                for(var name in r){
+                    if(r[name]){
+                        delete groups[name]
+                    }
+                }
+                save_data("data",to_json(data),slot)
+                editConfigSecondBar(player,slot,data)
+            })
+        }
+    }]
+
+    var groups = []
+    groups = data.groups
+    for(var g of Object.keys(groups)){
+        var gg = g
+        ui.btns.push({
+            icon : pictures[groups[gg]],
+            text : gg,
+            func : ()=>{
+                editConfigSecondBar(player,slot,data)
+            }
+        })
+    }
+
+    ui.show(player)
 }
 
 function cdBar(player){
@@ -4019,7 +5970,19 @@ function cdBar(player){
     }
     
     if(player.landing.mode === 1){
-        createLandBar(player)
+        if(player.isSneaking){
+            player.landing.mode = 0 
+            player.landing.points = []
+            chat("§e[领地系统]已取消创建领地！")
+        }
+        else{
+            if(player.landing.points.length === 2){
+                createLandBar(player)
+            }
+            else{
+                show_title(player,get_text("land.two"))
+            }
+        }
         return
     }
     
@@ -4040,7 +6003,7 @@ function cdBar(player){
     if(player.in_land !== ""){
         var land = get_land(player.in_land)
         ui.btns.push({
-            text : `领地:${land.name}\n领地主:${get_name_by_id(land.creater)}`,
+            text : `领地:${land.name}\n领地主:${(is_bool(land.public) ? "公共领地" : get_name_by_id(land.creater))}`,
             icon : ui_icon.land,
             func : ()=>{
                 viewLandBar(player,player,land.id)
@@ -4084,9 +6047,9 @@ function cdBar(player){
     if(config.store.able){
         ui.btns.push({
             text : "商店",
-            icon : ui_icon.trade,
+            icon : ui_icon.villager,
             func :()=>{
-                globalStoreBar(player)
+                storeBar(player)
             }
         })
     }
@@ -4396,7 +6359,7 @@ function createLandBar(player){
     }
     
     if(un(player.scoreboardIdentity)){
-        show_title(player,"无法初始化计分板\n请重进游戏")
+        show_title(player,"无法初始化记分版\n请重进游戏")
         return
     }
     
@@ -4404,6 +6367,11 @@ function createLandBar(player){
     ui.input("name",`领地尺寸:${size.x} * ${size.y} * ${size.z}\n您的金额:${to_number(board.getScore(player))}\n价格:${price}\n总方块量:${size.x*size.y*size.z}\n始点:${get_block_pos(points[0])}\n终点:${get_block_pos(points[1])}\n领地名:`,"领地名","")
     ui.range("y1","起点y坐标(修改后请选择预览)",player.dimension.heightRange.min,player.dimension.heightRange.max,1,points[0].y)
     ui.range("y2","终点y坐标(修改后请选择预览)",player.dimension.heightRange.min,player.dimension.heightRange.max,1,points[1].y)
+    
+    if(get_op_level(player) > 0){
+        ui.toggle("public","公共领地(管理均可编辑)",false)
+    }
+    
     ui.options("type","操作",["暂时预览","取消创建","确认创建"],0)
     ui.show(player,(r)=>{
         if(r.type === 0){
@@ -4441,11 +6409,21 @@ function createLandBar(player){
             "name" : r.name,
             "price" : price,
         }
+        
+        if(is_bool(r.public)){
+            if(r.public === true){
+                land.public = true
+            }
+        }
+        else{
+            board.setScore(player,to_number(board.getScore(player)) - price)
+        }
+
         var center = {
             x : (points[1].x + points[0].x)/2,
             z : (points[1].z + points[0].z)/2
         }
-        board.setScore(player,to_number(board.getScore(player)) - price)
+        
         land.distance = Math.round(Math.sqrt(Math.pow(Math.abs(center.x),2) + Math.pow(Math.abs(center.z),2)))
         add_land(player,land)
         save_land(land)
@@ -4717,6 +6695,112 @@ function lockRulesBar(player){
     })
 }
 
+function editItemEvents(player){
+    var ui = new btnBar()
+    ui.title = "设置物品效果"
+    ui.body = ["通过设置物品效果来让指定物品有特殊功能","注：执行命令只能执行命令集"]
+    ui.cancel = ()=>{
+        opBar(player)
+    }
+    ui.btns = [{
+        text : "编辑命令集",
+        icon : ui_icon.edit,
+        func : ()=>{
+            confirm(player,array2string([
+                "命令集的编辑格式为多行编辑器",
+                '每一行输入一个命令集，格式为["命令1","命令2","命令3"]',
+                "请注意命令集行号，当需要调用这个命令集时，请输入行号",
+                "当无法识别行号时，会调用第一行的命令集，因此第一行可作为测试用"
+            ]),(r)=>{
+                if(r){
+                    var editor = new arrayEditor()
+                    editor.back = ()=>{
+                        save_command_set()
+                        editItemEvents(player)
+                    }
+                    editor.edit(player,command_set)
+                }else{
+                    editItemEvents(player)
+                }
+            })
+        }
+    },{
+        text : "编辑物品效果",
+        func : ()=>{
+            editItemEvent(player)
+        }
+    }]
+    ui.show(player)
+}
+
+function editItemEvent(player){
+    var ui = new infoBar()
+    ui.title = "选择物品"
+    ui.cancel = ()=>{
+        editItemEvents(player)
+    }
+    ui.options("slot","选择物品栏物品",[
+        "物品栏1",
+        "物品栏2",
+        "物品栏3",
+        "物品栏4",
+        "物品栏5",
+        "物品栏6",
+        "物品栏7",
+        "物品栏8",
+        "物品栏9",
+    ],0)
+    ui.show(player,(r)=>{
+        var item = player.slots.getItem(r.slot)
+        if(un(item)){
+            confirm(player,"物品不存在！",(r)=>{
+                editItemEvents(player)
+            })
+        }else{
+            var event = item.getLore()
+            if(event.length > 0){
+                event = event[0]
+                if(event.indexOf(":") !== -1){
+                    event = [event.slice(0,event.indexOf(":")),event.slice(event.indexOf(":")+1)]
+                }
+                if(event.length !== 2){
+                    event = ["",""]
+                }
+            }else{
+                event = ["",""]
+            }
+            var ui2 = new infoBar()
+            ui2.title = "编辑效果"
+            ui2.cancel = ()=>{
+                opBar(player)
+            }
+            ui2.options("type","效果",["击退(耐久性)","命令执行者(一次性)","传送至准心位置(一次性)(最大范围48)"],array_has(data_format.item_events,event[0])?array_index(data_format.item_events,event[0]):0)
+            ui2.input("data",'命令执行者-输入命令集的行号\n击退-输入等级1-10\n传送-不填',"填入数据",event[1])
+            ui2.show(player,(r2)=>{
+                player.slots.getSlot(r.slot).setLore([data_format.item_events[r2.type] + ":" + r2.data])
+                editItemEvents(player)
+            })
+        }
+    })
+}
+
+function get_item_event(item){
+    if(un(item)){return}
+    var event = item.getLore()
+    if(event.length > 0){
+        event = event[0]
+        if(event.indexOf(":") !== -1){
+            event = [event.slice(0,event.indexOf(":")),event.slice(event.indexOf(":")+1)]
+        }
+        if(event.length !== 2){
+            event = ["",""]
+        }
+
+        return event
+    }
+    return
+}
+
 function opBar(player){
     if(is_object(player.follow)){
         reset_player_follow(player)
@@ -4976,6 +7060,12 @@ function opBar(player){
             managerFloat(player)
         }
     },{
+        text : "编辑物品特殊效果",
+        icon : ui_icon.sword,
+        func : ()=>{
+            editItemEvents(player)
+        }
+    },{
         text : "插件设置",
         icon : ui_icon.setting,
         func : ()=>{
@@ -5222,12 +7312,103 @@ function save_ops(){
 
 function OnlineBoardBar(player){
     var ui = new infoBar()
-    ui.title = "剔除离线玩家计分板"
-    var text = `输入要剔除离线玩家的计分板ID，多个计分板之间用英文分号;间隔开\n设置后,系统会生成一个下划线_后缀的计分板，这个计分板就是剔除离线玩家的计分板\n例如： Money >> Money_`
-    ui.input("r",text,"计分板id,多个之间用;隔开",config.copy_boards)
+    ui.title = "剔除离线玩家记分版"
+    var text = `输入要剔除离线玩家的记分版ID，多个记分版之间用英文分号;间隔开\n设置后,系统会生成一个下划线_后缀的记分版，这个记分版就是剔除离线玩家的记分版\n例如： Money >> Money_`
+    ui.input("r",text,"记分版id,多个之间用;隔开",config.copy_boards)
     ui.show(player,(r)=>{
         config.copy_boards = r.r
         save_config()
+    })
+}
+
+function setEventsBar(player){
+    var ui = new btnBar()
+    ui.title = "编辑全局事件"
+    ui.body = "管理全局事件"
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    ui.btns = [{
+        text : "添加全局事件",
+        icon : ui_icon.add,
+        func : ()=>{
+            editEventBar(player,"",-1)
+        }
+    }]
+
+    for(var type of Object.keys(events)){
+        for(var i=0;i<events[type].length;i++){
+            ui.btns.push({
+                text : to_string(events[type][i].name),
+                op : {type:type,i:i},
+                func : (op)=>{
+                    editEventBar(player,op.type,op.i)
+                }
+            })
+        }
+    }
+
+    ui.show(player)
+}
+
+function editEventBar(player,type,index){
+    var first = false
+    var event
+    if(index === -1){
+        first = true
+        event = {tag : "",commands : "",name:""}
+    }else{
+        event = events[type][index]
+    }
+
+    var ui = new infoBar()
+    ui.title = "编辑事件"
+    ui.cancel = ()=>{
+        setEventsBar(player)
+    }
+    ui.input("name","事件备注名","输入名字",to_string(event.name))
+    ui.options("type","事件类型",
+        ["玩家进游戏","玩家死亡","玩家使用传送点","玩家发送消息","玩家转换维度","破坏方块","放置方块","玩家攻击","玩家睡觉","玩家杀死生物"],
+        array_has(data_format.events,type) ? array_index(data_format.events,type) : 0)
+    ui.input("tag","标签限制(含有该标签才触发)","标签(不支持多个)",event.tag)
+    ui.input("commands",'执行的命令\n格式:["命令1","命令2","命令3"]',"输入命令",event.commands)
+    if(!first){
+        ui.toggle("d","删除",false)
+    }
+    ui.show(player,(r)=>{
+        if(!first){
+            if(r.d){
+                events[type].splice(index,1)
+                save_events()
+                setEventsBar(player)
+                return
+            }
+            events[type].splice(index,1)
+        }
+        event.tag = r.tag
+        event.name = r.name
+        event.commands = r.commands
+        if(un(events[data_format.events[r.type]])){
+            events[data_format.events[r.type]] = []
+        }
+        events[data_format.events[r.type]].push(event)
+        save_events()
+        setEventsBar(player)
+
+    })
+}
+
+function chatByBoardBar(player){
+    var ui =new infoBar()
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    ui.title = "计分板聊天室"
+    ui.toggle("able","计分板聊天室\n启用后会生成一个id为chat的计分板\n计分板分数相同的人进行单独群聊\n[禁用|启用]",config.chat_board.able)
+    ui.show(player,(r)=>{
+        config.chat_board.able = r.able
+        save_config()
+        usfSettingBar(player)
     })
 }
 
@@ -5238,7 +7419,13 @@ function usfSettingBar(player){
     ["欢迎来到插件设置界面",
      "此处管理插件所有功能"]
     ui.btns = [{
-        text : "计分板自动剔除离线玩家设置",
+        text : "计分板聊天室",
+        icon : ui_icon.player,
+        func : ()=>{
+            chatByBoardBar(player)
+        }
+    },{
+        text : "记分版自动剔除离线玩家设置",
         icon : ui_icon.ping,
         func : ()=>{
             OnlineBoardBar(player)
@@ -5250,14 +7437,69 @@ function usfSettingBar(player){
             usfFunctionBar(player,"tran")
         }
     },
-    
-    /* {
+    {
+        text : "全局配置文件",
+        icon : ui_icon.copy,
+        func : ()=>{
+            setConfigItemBar(player)
+        }
+    },
+    {
+        text : "配置全局事件",
+        icon : ui_icon.event,
+        func : ()=>{
+            setEventsBar(player)
+        }
+    },
+    {
+        text : "记分版计时器",
+        icon : ui_icon.speed,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "记分版计时器"
+            ui2.cancel = ()=>{
+                usfSettingBar(player)
+            }
+            ui2.input("id","记分版计时器\n注意：只能设置一个记分版作为计时器\n设置后，当记分版有分数>0时，自动开始倒计时，直到分数为-1停下\n设置后，当记分版有分数为-2时，自动开始正计时，直到分数被设置为0或-1\n插件重载/游戏重启后自动清空整个记分版\n\n记分版ID","输入ID",config.timer)
+            ui2.show(player,(r)=>{
+                config.timer = r.id
+                save_config()
+                usfSettingBar(player)
+            })
+        }
+    },
+    {
+        text : "标签组设置",
+        icon : ui_icon.brush,
+        func : ()=>{
+            confirm(player,[
+                "说明：标签组可以设置多个标签成为1组",
+                "其中第一个tag为默认tag,当玩家不含组中任何一个tag时自动赋予默认tag",
+                "当玩家同时存在组中2个tag时,插件自动移除旧的tag,玩家在任何时候只含组内1个tag",
+                "注意：标签组刷新频率为0.5S,给玩家添加tag后请延迟10tick执行下一个命令/操作",
+                "格式：多行编辑器,每行填入一组标签组,每个标签之间用英文分号;间隔",
+                "例如: tag1;tag2;tag3;tag4  则这四个标签为1个标签组",
+                "点击下方确认按钮前往编辑"],(r)=>{
+                    if(r){
+                        var editor = new arrayEditor()
+                        editor.back = ()=>{
+                            save_tag_groups()
+                            usfSettingBar(player)
+                        }
+                        editor.edit(player,tag_groups)
+                    }else{
+                        usfSettingBar(player)
+                    }
+                })
+        }
+    },
+     {
         text : "全局商店设置",
-        icon : ui_icon.trade,
+        icon : ui_icon.villager,
         func : ()=>{
             usfFunctionBar(player,"store")
         }
-    }, */
+    }, 
     
     {
         text : "公告设置",
@@ -5272,7 +7514,7 @@ function usfSettingBar(player){
             usfFunctionBar(player,"hurttip")
         }
     },{
-        text : "计分板默认值",
+        text : "记分版默认值",
         icon : ui_icon.scoreboard,
         func : ()=>{
             usfFunctionBar(player,"reset")
@@ -5290,7 +7532,7 @@ function usfSettingBar(player){
             usfFunctionBar(player,"log")
         }
     },{
-        text : "积分统计",
+        text : "数据统计(原积分功能)",
         icon : ui_icon.online,
         func : ()=>{
             usfFunctionBar(player,"score")
@@ -5300,6 +7542,12 @@ function usfSettingBar(player){
         icon : ui_icon.land,
         func : ()=>{
             usfFunctionBar(player,"land")
+        }
+    },{
+        text : "小游戏功能设置",
+        icon : ui_icon.map,
+        func : ()=>{
+            usfFunctionBar(player,"mini")
         }
     },{
         text : "游戏时间统计",
@@ -5362,12 +7610,6 @@ function usfSettingBar(player){
         icon : ui_icon.pos,
         func : ()=>{
             usfFunctionBar(player,"pos")
-        }
-    },{
-        text : "在线玩家计分板设置",
-        icon : ui_icon.off,
-        func : ()=>{
-            usfFunctionBar(player,"online")
         }
     },
     {
@@ -5494,11 +7736,13 @@ function editBoardBar(player , id){
     })
 }
 
-function editLock(player,index){
+function editLock(player,index,first){
     var cf = lock_config[index]
     var ui =new infoBar()
     ui.cancel = ()=>{
-        lock_config.splice(index,1)
+        if(first){
+            lock_config.splice(index,1)
+        }
         setLockBar(player)
     }
     ui.title = "编辑锁定物品"
@@ -5516,6 +7760,8 @@ function editLock(player,index){
         "物品栏9",
     ],to_number(cf[0],0))
     ui.toggle("de","删除",false)
+    var tag = (cf.length > 3) ? cf[3] : ""
+    ui.input("tag","标签(含该标签才会被锁定此物品)","标签",tag)
     ui.show(player,(r)=>{
         if(r.de){
             lock_config.splice(index,1)
@@ -5523,6 +7769,7 @@ function editLock(player,index){
             cf[0] = r.slot
             cf[1] = r.id
             cf[2] = r.count
+            cf[3] = r.tag
         }
         save_lock_config()
         setLockBar(player)
@@ -5535,13 +7782,13 @@ function setLockBar(player){
     ui.cancel = ()=>{
         usfSettingBar(player)
     }
-    ui.body = "管理锁定物品"
+    ui.body = "管理锁定物品\n提示：为玩家添加reload_lock_item标签可以立马刷新玩家的锁定物品"
     ui.btns.push({
         text :"添加",
         icon :ui_icon.add,
         func :()=>{
             lock_config.push([])
-            editLock(player,lock_config.length -1)
+            editLock(player,lock_config.length -1,true)
         }
     })
     ui.btns.push({
@@ -5562,7 +7809,7 @@ function setLockBar(player){
                 index : i
             },
             func : (op)=>{
-                editLock(player,op.index)
+                editLock(player,op.index,false)
             }
         })
     }
@@ -5573,15 +7820,15 @@ function setLockBar(player){
 
 function resetBoardBar(player){
     var ui = new btnBar()
-    ui.title = "计分板默认值设置"
+    ui.title = "记分版默认值设置"
     ui.cancel = ()=>{
         usfSettingBar(player)
     }
-    ui.body = ["当玩家计分板无值时，插件自动给予默认值"]
+    ui.body = ["当玩家记分版无值时，插件自动给予默认值"]
     for(var i=0;i<reset_boards.length;i++){
         var b = reset_boards[i]
         ui.btns.push({
-            text : `计分板:${b[0]}\n默认值:${b[1]}`,
+            text : `记分版:${b[0]}\n默认值:${b[1]}`,
             op : {
                 index : i
             },
@@ -5592,7 +7839,7 @@ function resetBoardBar(player){
                     resetBoardBar(player)
                 }
                 ui2.title = "设置默认值"
-                ui2.input("id","计分板ID","输入id",bd[0])
+                ui2.input("id","记分版ID","输入id",bd[0])
                 ui2.input("value","默认值","输入整数",String(bd[1]))
                 ui2.toggle("de","删除",false)
                 ui2.show(player,(r)=>{
@@ -5620,7 +7867,7 @@ function resetBoardBar(player){
                 resetBoardBar(player)
             }
             ui2.title = "设置默认值"
-            ui2.input("id","计分板ID","输入id","")
+            ui2.input("id","记分版ID","输入id","")
             ui2.input("value","默认值","输入整数","0")
             ui2.show(player,(r)=>{
                 reset_boards.push([r.id,to_number(parseInt(r.value))])
@@ -5632,6 +7879,239 @@ function resetBoardBar(player){
     ui.show(player)
 }
 
+function setConfigItemBar(player){
+    var item = get_player_offhand_item(player)
+    var ui = new btnBar()
+    ui.title = "设置全局配置文件"
+    ui.body = ["管理可以通过物品打开的全局配置文件","注：在编辑界面将物品id留空则会删除此配置"]
+    ui.btns = [{
+        text : "新增物品",
+        icon : ui_icon.add,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "新增物品"
+            ui2.input("id","物品id","输入id","minecraft:")
+            ui2.cancel = ()=>{
+                setConfigItemBar(player)
+            }
+            if(!un(item)){
+                if(item.typeId === "usf:config_file"){
+                    ui2.toggle("update","绑定为当前配置文件",true)
+                }
+            }
+            ui2.show(player,(r)=>{
+                if(r.id === ""){
+                    setConfigItemBar(player)
+                    return
+                }
+
+                var o = {}
+                if(to_bool(r.update,false)){
+                    set_store_item(item,(chest,slot)=>{
+                        o.chest = chest
+                        o.item = slot
+                        config.config_item[r.id] = o
+                        save_config()
+                        setConfigItemBar(player)
+                    })
+                }else{
+                    config.config_item[r.id] = o
+                    save_config()
+                    setConfigItemBar(player)
+                }
+                
+            })
+        }
+    }]
+
+    for(var id in config.config_item){
+        ui.btns.push({
+            text : id,
+            op : {id:id},
+            func : (op)=>{
+                editConfigItemDetailBar(player,op.id)
+            }
+        })
+    }
+
+    ui.show(player)
+
+}
+
+function editConfigItemDetailBar(player,id){
+    var item = get_player_offhand_item(player)
+    var ui =new infoBar()
+    ui.title = "修改物品"
+    ui.input("id",(is_string(config.config_item[id].chest) ? "当前已绑定配置文件" : "当前没有绑定配置文件") + "\n物品id","输入id",id)
+    ui.cancel = ()=>{
+        setConfigItemBar(player)
+    }
+    if(!un(item)){
+        if(item.typeId === "usf:config_file"){
+            ui.toggle("update","绑定/覆盖为当前配置文件",false)
+        }
+    }
+    ui.show(player,(r)=>{
+        var o = {...config.config_item[id]}
+        delete config.config_item[id]
+        if(r.id === ""){
+            setConfigItemBar(player)
+            return
+        }
+        if(to_bool(r.update,false)){
+            set_store_item(item,(chest,slot)=>{
+                o.chest = chest
+                o.item = slot
+                config.config_item[r.id] = o
+                save_config()
+                setConfigItemBar(player)
+            })
+        }else{
+            config.config_item[r.id] = o
+            save_config()
+            setConfigItemBar(player)
+        }
+
+    })
+}
+
+function setScoreBar(player){
+    var ui = new btnBar()
+    ui.cancel = ()=>{
+        usfSettingBar(player)
+    }
+    ui.title = "管理数据统计方案"
+    ui.body = ["管理数据统计方案"]
+    ui.btns = [{
+        text : "新增数据统计方案",
+        icon : ui_icon.add,
+        func : ()=> {
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                setScoreBar(player)
+            }
+            ui2.title = "新增数据统计方案"
+            ui2.input("tag","使用该方案的玩家的tag(不填则没有tag限制)","标签","")
+            ui2.show(player,(r)=>{
+                score_config[r.tag] = []
+                save_score_config()
+                setScoreBar(player)
+            })
+        }
+    }
+    ]
+    if(Object.keys(score_config).length > 0){
+    ui.btns.push({
+        text : "删除方案",
+        icon : ui_icon.delete,
+        func : ()=> {
+            var groups = score_config
+
+            var ui2 = new infoBar()
+            ui2.cancel = ()=>{
+                setScoreBar(player)
+            }
+            ui2.title = "删除方案"
+            for(var name in groups){
+                ui2.toggle(name,name,false)
+            }
+            
+            ui2.show(player,(r)=>{
+                for(var name in r){
+                    if(r[name]){
+                        delete groups[name]
+                    }
+                }
+                save_score_config()
+                setScoreBar(player)
+            })
+        }
+    })
+    }
+
+    for(var c of Object.keys(score_config)){
+        var cf = c
+        ui.btns.push({
+            text : cf,
+            func : ()=>{
+                setScorePages(player,cf)
+            }
+        })
+    }
+    
+    ui.show(player)
+}
+
+function setScorePages(player,cf){
+    var ui = new btnBar()
+    ui.title = "设置方案"
+    ui.body = ["配置方案","方案Tag:"+cf]
+    ui.btns = [{
+        text : "新增统计",
+        icon : ui_icon.add,
+        func : ()=> {
+            editScorePage(player,cf,{},true)
+        }
+    }]
+
+    for(var i=0;i<score_config[cf].length;i++){
+        ui.btns.push({
+            text : score_config[cf][i].name,
+            op : {i:i},
+            func : (op)=>{
+                editScorePage(player,cf,score_config[cf][op.i],false)
+            }
+        })
+    }
+    ui.show(player)
+}
+
+function editScorePage(player,tag,page,first = false){
+    if(first){
+        page = {
+            type : "",
+            data : "",
+            name : "",
+            board : ""
+        }
+    }
+
+    var text = "切换维度-输入目标维度ID\n破坏方块-破坏的方块ID\n放置方块-放置的方块ID\n造成伤害-伤害的实体ID\n杀死实体-杀死的实体ID\n其他不用填"
+    var ui = new infoBar()
+    ui.cancel = ()=>{
+        setScorePages(player,tag)
+    }
+    ui.title = "编辑统计"
+    ui.input("name","备注名","输入备注名" ,page.name)
+    ui.options("type","统计类型",[
+        "玩家死亡","玩家切换维度","破坏方块","放置方块","造成伤害","生命值","杀死实体","加入游戏"
+    ],array_has(data_format.score,page.type)?array_index(data_format.score,page.type):0)
+    
+    ui.input("board","记分版ID","输入记分版",page.board)
+    ui.input("data","限制数据\n" + text,"输入限制数据" ,page.data)
+    if(!first){
+        ui.toggle("d","删除",false)
+    }
+    ui.show(player,(r)=>{
+        if(first){
+            score_config[tag].push(page)
+        }else{
+            if(r.d){
+                array_clear(score_config[tag],page)
+                save_score_config()
+                setScorePages(player,tag)
+                return
+            }
+        }
+        page.type = data_format.score[r.type]
+        page.data = r.data
+        page.name = r.name
+        page.board = r.board
+        save_score_config()
+        setScorePages(player,tag)
+    })
+}
+
 //插件设置界面
 function usfFunctionBar(player , type){
     var ui = new infoBar()
@@ -5641,9 +8121,9 @@ function usfFunctionBar(player , type){
     
     switch(type){
         case "online":
-            ui.title = "在线计分板"
-            var text = "下面填入只需要显示在线玩家的计分板id，多个id用;隔开\n插件会自动生成id\"名字_\"的计分板，这个计分板就是只显示在线玩家的计分板\n例如:Show计分板将生成Show_计分板"
-            ui.input("online",text,"输入计分板id",config.other.online)
+            ui.title = "在线记分版"
+            var text = "下面填入只需要显示在线玩家的记分版id，多个id用;隔开\n插件会自动生成id\"名字_\"的记分版，这个记分版就是只显示在线玩家的记分版\n例如:Show记分版将生成Show_记分版"
+            ui.input("online",text,"输入记分版id",config.other.online)
             break
         case "other":
             ui.title = "其他功能设置"
@@ -5672,15 +8152,8 @@ function usfFunctionBar(player , type){
             ui.toggle("able","全局商店[禁用 | 启用]",config.store.able)
             break
         case "score":
-            ui.title = "积分设置"
-            ui.toggle("able","[禁用 | 启用]",config.score.able)
-            ui.input("id","积分的计分板id","输入id,若id不存在则会创建",config.score.id)
-            var sc = get_score_config()
-            for(var k of Object.keys(sc)){
-                ui.toggle(k,get_text("score."+k) + "[关闭 | 开启]",array_has(config.scores,k))
-                ui.input(k,"增加积分/次","输入分数",String(sc[k][0]))
-                ui.input(k,"每日上限","输入分数",String(sc[k][1]))
-            }
+            setScoreBar(player)
+            return
             break
         case "cd_items":
             var editor = new arrayEditor()
@@ -5702,11 +8175,11 @@ function usfFunctionBar(player , type){
             break
         case "land":
             ui.title = "领地设置"
-            ui.toggle("able","[禁用 | 启用](实验性功能)",config.land.able)
+            ui.toggle("able","[禁用 | 启用]",config.land.able)
             ui.range("max","可创建领地数量(管理员可无限创建)",0,100,1,config.land.max)
-            ui.input("board","领地扣费计分板id","输入id",config.land.board)
+            ui.input("board","领地扣费记分版id","输入id",config.land.board)
             ui.range("price","领地价格/每方块(最后价格约成整数)",0,10,1,config.land.price)
-            ui.toggle("must","金额必须足够(若关闭，则计分板可能会被扣费成负数)",config.land.must)
+            ui.toggle("must","金额必须足够(若关闭，则记分版可能会被扣费成负数)",config.land.must)
             ui.input("show","领地提示语(/name转换为领地主名字)","输入提示语",config.land.show)
             break
         case "cd_con":
@@ -5748,12 +8221,12 @@ function usfFunctionBar(player , type){
         case "tran":
             ui.title = "转账机功能设置"
             ui.toggle("able","转账机[关闭 | 开启]",config.tran.able)
-            ui.input("board","转账的计分板，多个之间用英文分号;分隔","输入计分板ID",config.tran.board)
+            ui.input("board","转账的记分版，多个之间用英文分号;分隔","输入记分版ID",config.tran.board)
             ui.range("free","手续费(百分比)",0,200,1,config.tran.free)
             break
         case "time":
             ui.title = "游戏时间统计"
-            ui.toggle("able","游戏时间统计[关闭 | 开启]\n游戏时间的计分板id为time\n显示时间的计分板id为time_show",config.time.able)
+            ui.toggle("able","游戏时间统计[关闭 | 开启]\n游戏时间的记分版id为time\n显示时间的记分版id为time_show",config.time.able)
             ui.options("type","统计时间",["每秒","每分钟"],config.time.type)
             ui.toggle("show","显示时间并锁定在玩家列表",config.time.show)
             break
@@ -5801,6 +8274,11 @@ function usfFunctionBar(player , type){
             ui.range("r_di","维度改变给予抗性提升5的时间",0,30,1,config.game.r_di)
             ui.range("r_rs","重生给予抗性提升5的时间",0,30,1,config.game.r_rs)
             break
+        case "mini":
+            ui.title = "小游戏功能设置"
+            ui.toggle("land_tag","领地内赋予玩家§eland.领地ID§r的标签",config.mini.land_tag)
+            ui.toggle("clear_tag","玩家进入游戏清除_(下划线)开头的tag",config.mini.clear_tag)
+            break
         case "com":
             ui.title = "插件命令设置"
             for(var key of data_format.commands){
@@ -5826,6 +8304,12 @@ function usfFunctionBar(player , type){
                 config.tran.able = r.able
                 config.tran.board = r.board
                 config.tran.free = Math.round(r.free)
+                save_config()
+                usfSettingBar(player)
+                break
+            case "mini":
+                config.mini.land_tag = r.land_tag
+                config.mini.clear_tag = r.clear_tag
                 save_config()
                 usfSettingBar(player)
                 break
@@ -5869,15 +8353,9 @@ function usfFunctionBar(player , type){
                 config.land.max = r.max
                 config.land.show = r.show
                 save_config()
-                if(r.able){
-                    tip(player,"领地为实验性功能，可能会破坏您的存档！请谨慎使用",()=>{
-                        if(un(world.scoreboard.getObjective(config.land.board))){
-                            confirm(player,"刚才配置的计分板不存在！领地功能无法使用！",()=>{
-                                usfSettingBar(player)
-                            })
-                        }else{
-                            usfSettingBar(player)
-                        }
+                if(un(world.scoreboard.getObjective(config.land.board))){
+                    confirm(player,"刚才配置的记分版不存在！领地功能无法使用！",()=>{
+                        usfSettingBar(player)
                     })
                 }else{
                     usfSettingBar(player)
@@ -5935,24 +8413,6 @@ function usfFunctionBar(player , type){
                 save_config()
                 usfSettingBar(player)
                 break
-            case "score":
-                config.score.id = r.id
-                config.score.able = r.able
-                var un_ids = ["id"  , "able"]
-                var sc = get_score_config()
-                config.scores = []
-                for(var k of Object.keys(r)){
-                    if(!array_has(un_ids,k)){
-                        if(r[k][0] === true){
-                            config.scores.push(k)
-                        }
-                        sc[k] = [to_number(parseFloat(r[k][1]),0) , to_number(parseFloat(r[k][2]),0)]
-                    }
-                }
-                save_data("score_config",to_json(sc))
-                save_config()
-                usfSettingBar(player)
-                break
             case "pos":
                 config.tp.random_range = r.random_range
                 config.tp.random_end = r.random_end
@@ -5989,7 +8449,7 @@ function usfFunctionBar(player , type){
     })
 }
 
-function show_board(player , id = null){
+function show_board(player , id = null , show_cd = true){
     var boards = get_boards()
     if(config.board.able === false || boards.length === 0){
         return
@@ -6023,13 +8483,15 @@ function show_board(player , id = null){
     ui.busy = null
     ui.title = board.name
     ui.body = tran_text(player,board.texts,true)
-    ui.btns = [{
-        text : "主菜单",
-        icon : ui_icon.craft_table,
-        func : ()=>{
-            cdBar(player)
-        }
-    }]
+    if(show_cd){
+        ui.btns = [{
+            text : "主菜单",
+            icon : ui_icon.craft_table,
+            func : ()=>{
+                cdBar(player)
+            }
+        }]
+    }
 
     for(var i=0;i<ids.length;i++){
         var last_id = ids[i]
@@ -6048,6 +8510,14 @@ function show_board(player , id = null){
                 ui.btns.splice(0,0,ui.btns.pop())
             }
         }
+    }
+    
+    if(ui.btns.length === 0){
+        ui.btns.push({
+            text : "关闭",
+            icon : ui_icon.delete,
+            func : ()=>{}
+        })
     }
     ui.show(player)
 }
@@ -6201,6 +8671,13 @@ function is_number(value ){
     return false
 }
 
+function is_bool(value ){
+    if(typeof(value) == "boolean" ){
+        return true
+    }
+    return false
+}
+
 function to_number(value , none = 0){
     if(typeof(value) == "number" ){
         if(!isNaN(value)){
@@ -6302,9 +8779,9 @@ function tran_text(player,texts,keep_array = false){
     var boards = world.scoreboard.getObjectives()
     for(var b of boards){
         if(b.hasParticipant(player)){
-            things["board."+b.id] = String(b.getScore(player))
+            things["board."+b.id + ".score"] = String(b.getScore(player))
         }else{
-            things["board."+b.id]  = "0"
+            things["board."+b.id + ".score"]  = "0"
         }
     }
     }
@@ -6350,7 +8827,7 @@ function tran_text(player,texts,keep_array = false){
 
 
 function un(v){
-    if(typeof(v) === "undefined"){
+    if(v ==  undefined){
         return true
     }
     return false
@@ -6363,12 +8840,24 @@ function server_log(type , text , path){
     if(!log_config.server){
         return
     }
-    type = (type === 0) ? "log" : "print"
+    switch(type){
+        case 0:
+            type = "log"
+            break
+        case 1:
+            type = "print"
+            break
+        case 2:
+            type = "info"
+            text = to_json(text)
+            break
+    }
     text = clear_colour(text)
     logs.push({
         type : encodeURI(type),
         text : encodeURI(text),
-        path : encodeURI(path)
+        path : encodeURI(path),
+        v : "2"
     })
 
 }
