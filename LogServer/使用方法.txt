@@ -1,0 +1,32 @@
+USF V2 服务器日志功能使用方法：
+
+提醒：该功能只能用于BDS服务端！存档与Realm无法使用
+
+一、前置准备
+    1.将"9472c503-5a92-43c8-7ddf-0492de2362d7"文件夹复制到BDS服务器的"config"文件夹里面
+    (每次更新服务端，您都需要做这一步)
+    2.网上搜索NodeJS并下载系统对应版本
+    (Windows : https://nodejs.org/dist/v20.11.0/node-v20.11.0-x64.msi)(64位系统)
+    (Linux : https://nodejs.org/dist/v20.11.0/node-v20.11.0-linux-x64.tar.xz)(X86系统)(其他类型的系统自行前往官网)
+    3.安装NodeJS
+    (Windows:双击打开安装包即可安装)
+    (Linux:见https://blog.csdn.net/qq_45830276/article/details/126022778)
+
+二、插件准备
+    1.进入服务器，打开服务器设置页面，填写好插件地址(一般不做修改)，选择需要记录的日志
+    2.关闭服务器
+    3.将目录下的permissions.json覆盖掉BDS目录\config\default下的permissions.json
+    4.打开服务器存档文件夹 > behaviour_packs > (USF对应的文件夹，一半是"无名氏B") 
+    里面有 manifest.json 和 manifestR.json 两个文件夹
+    将 manifest.json 删除  ，  将manifestR.json改名为manifest.json（即用manifestR.json替换manifest.json)
+    (每次更新插件，您都需要做这一步)
+
+三、启动日志服务器
+    1.任意处新建一个文件夹，将Main.js和LogServer.json文件拖进去
+    2.启动日志服务器(确保已安装nodejs)
+    Windows : 将start.cmd也拉入文件夹，双击cmd文件即可启动
+    Linux :  将start.sh也拉入文件夹，运行该文件即可启动
+    3.启动BDS即可
+
+关闭服务器：输入stop，回车，即可
+日志保存在文件夹的Log文件夹内
