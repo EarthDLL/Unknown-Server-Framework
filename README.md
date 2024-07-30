@@ -1,10 +1,12 @@
 <img src=https://www.minebbs.com/data/resource_icons/5/5475.jpg?1720754365 title="USF">  
 
+[English](/README(English).md)
+
 ### UnknowServerFramework(USF)
 
 基于原版MinecraftBedrockEdition Gametest
 
-当前版本：0.6.25(B)测试版
+当前版本：0.6.26(B)测试版
 
 适用于MinecraftBE官方服务端(BDS)、个人存档、LLSE和Realms的生存辅助向、服务器管理插件
 
