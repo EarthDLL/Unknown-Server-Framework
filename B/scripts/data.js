@@ -11,6 +11,10 @@ export const usf_config = {
         able : false,
         data : ""
     },
+    "chat_board":{
+    able : false
+    },
+    "config_item" : {},
     "groups" :{
         "able" : false,
         "max" : 2, //每人可创建的群组
@@ -102,9 +106,17 @@ export const usf_config = {
     "commands" : [ "cd" , "op" , "tpaccept" , "home"],
     language : 0,
     "copy_boards" : "",
+    "mini" : {
+        land_tag : false,
+        clear_tag : false
+    },
+    "timer" : "",
 }
 
 export const data_format = {
+    item_events : ["knock","runner","tp"],
+    score : ["die","di","bb","pb","damage","health","kill","join"],
+    events : ["join","die","pos","chat","di","bb","pb","attack","sleep","kill"],
     land_permission : ["bb","ib","ie","pb"],
     hacker : [ "chest" ],
     commands : [ "cd" , "op" , "tpaccept" , "home" , "back" , "die" , "unsleep" , "land" , "tpr"],
@@ -114,7 +126,7 @@ export const data_format = {
         "di" , "kill" ,
         "die" , "sign" ,
         "lo"  , 
-        "chest" , "tp",
+        "chest" , "tp", "info",
     ],
     allow_blocks:[
         "minecraft:crafting_table",
@@ -133,6 +145,12 @@ export const data_format = {
         ban_time : 0,
         score : {},
     },
+    config_file : {
+        title : "",
+        body : "",
+        groups : {},
+        things : []
+    },
     board : {
         able : true,
         texts : [],
@@ -150,14 +168,6 @@ export const data_format = {
         pos : [],
         id : "",
         in : [],
-    },
-    score : {
-        bb : [ 1 , 100], //break block
-        pb : [ 1 , 100], //place block
-        login : [ 100 , 100], //login
-        pvp : [ 10 , 100], //pvp
-        kill : [1,100] ,//kill
-        hit : [1,100] ,//hit
     },
     pos : {
         owner : "",
@@ -191,28 +201,34 @@ export const data_format = {
         able : false,
         items : []
     },
-    good : {
-        state : 0, //0-在售 1-停售
-        title : "",
-        icon : "",
-        type : 0,
-        custom_icon : "",
+    good : {   
         id : "",
-        chest_id : "",
-        index : 0,
-        item_id : "", //收购ID
-        item_name : "",
-        description : "",
-        money : "",
-        price : 0,
-        global_count : "",
-        personal_count : "",
-        update_type : 0,
-        update_time : 0,
-        last_update : 0,
-        hide : false,
+        state : 0 ,
         group : "",
-        count : 1
+        title : "",
+        index : 0,
+        global_count : 0,
+        personal_count : 0,
+        update_type : 0,
+        update_time : 60, 
+        money : "", 
+        money_item : "minecraft:", 
+        price : 1, 
+        icon : "", 
+        custom_icon : "", 
+        name : "",
+        description : "",
+        chest : "", 
+        slot : 0, 
+        item : "minecraft:", 
+        hide : false, 
+        bar : 0, 
+        count : 1,
+        code : "",
+        back : false,
+        type : 9,
+        last : 0,
+        updated : 0,
     }
 }
 
@@ -234,7 +250,10 @@ export const ui_icon = {
     craft_table : ui_path + "icon_crafting.png",
     rubbish : ui_path + "trash_default.png",
     op : ui_path + "op.png",
+    event : ui_path + "saleribbon.png",
+    villager : ui_path + "icon_deals.png",
     pos:ui_path + "paste.png",
+    map : ui_path + "icon_map.png",
     random : ui_path + "icon_random.png",
     group : ui_path + "dressing_room_skins.png",
     info : ui_path + "infobulb.png",
