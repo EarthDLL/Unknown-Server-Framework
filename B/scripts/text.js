@@ -55,7 +55,7 @@ export var texts = {
 
     "follow.tip" : "跟踪开始后，你可以使用+op命令退出跟踪.",
 
-    "action.land" : "空手[点击]/[右键]方块以选取坐标点\n潜行输入+land 或 打开主菜单创建领地\n输入+land 或 打开主菜单取消创建",
+    "action.land" : "空手[点击]/[右键]方块以选取坐标点\n输入+land 或 打开主菜单创建领地\n潜行时输入+land 或 打开主菜单取消创建",
 
     "commands.cd" : "打开主菜单",
     "commands.op" : "打开管理界面",
@@ -79,6 +79,8 @@ export var texts = {
     "log.bb" : "破坏方块记录",
     "log.tp" : "USF内置传送记录",
     "log.di" : "维度改变记录",
+    "log.ib" : "与方块交互",
+    "log.info" : "玩家信息(Info.log)",
     "log.sign" : "告示牌更改记录(Sign.log)",
     
     "overworld.name" : "§b主世界§r",
@@ -94,7 +96,6 @@ export var texts = {
     "land.1" : "§e[群组成员]§r",
     "land.0" : "§e[访客]§r",
     "land.two" : "未选择两个坐标点",
-
     "about" : ["服务器信息§?Something about the Server"],
     "board_text" : ["欢迎来到服务器§?Welcome to this Server!"],
     "menu": ["欢迎来到主菜单§?Welcome to the Menu"],

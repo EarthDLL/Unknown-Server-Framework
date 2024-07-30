@@ -44,6 +44,7 @@ var reset_boards = []
 var cache = {
     time : 0,
 }
+var limit = {}
 var events = {}
 var score_config = {}
 var tag_groups = []
@@ -753,10 +754,8 @@ system_ids.time = system.runInterval(()=>{
 },20)
 
 function afterGameRuleChange(event){
-    chat("0")
     if(config.rule.able){
         var rules = to_object(parse_json(config.rule.data))
-        chat(event.rule)
         if(!un(rules[event.rule])){
             
             if(rules[event.rule] !== event.value){
@@ -1237,6 +1236,7 @@ function reload_all(){
     events = to_object(parse_json(get_data("events")))
     command_set = to_array(parse_json(get_data("command_set")))
     score_config = to_object(parse_json(get_data("score_config2")))
+    limit = to_object(parse_json(get_data("limit")))
 
     if(config.timer !== ""){
         overworld.runCommand(`scoreboard players reset * ${config.timer}`)
@@ -1247,6 +1247,10 @@ function reload_all(){
 
 function save_score_config(){
     save_data("score_config2",to_json(score_config))
+}
+
+function save_limit(){
+    save_data("limit",to_json(limit))
 }
 
 function save_events(){
@@ -1738,10 +1742,10 @@ function run_command(player,com){
         case "tpr":
             var now = Date.now()
             if((config.tp.random_range > 0 && now - player.last_tp > config.tp.down*1000) && (player.dimension.id !== "minecraft:the_end" || config.tp.random_end === true)){
-                random_tp(player,)
+                random_tp(player,now)
             }
             else{
-                chat("§e[传送系统]当前无法进行传送！")
+                chat("§e[传送系统]当前无法进行传送！",[player])
             }
             break
         case "tpaccept":
@@ -1859,6 +1863,18 @@ function beforePlayerInteractWithBlock(event){
     var player = event.player
     var block = event.block
     var item = event.itemStack
+
+    for(var t in limit){
+        if(player.hasTag(t)){
+            if(limit[t].ib){
+                if(array_has(limit[t].blocks,block.typeId)){
+                    event.cancel = true
+                    return
+                }
+            }
+            break
+        }
+    }
     
     if(config.land.able && !array_has(data_format.allow_blocks,block.typeId)){
         var land = get_land_by_pos(player.dimension,block.center())
@@ -1903,7 +1919,13 @@ function beforePlayerInteractWithBlock(event){
         }
     }
     
-    
+    if(to_string(player.limiting) !== ""){
+        if(!array_has(limit[player.limiting].blocks,block.typeId)){
+            limit[player.limiting].blocks.push(block.typeId)
+            chat(`§e[管理系统]已录入：${block.typeId}`)
+            save_limit()
+        }
+    }
     
     if(!un(item)){
         if(item.typeId === "minecraft:wooden_axe"){
@@ -2301,6 +2323,7 @@ function afterEntitySpawn(event){
 function beforeBlockPlace(event){
     var player = event.player
     var block = event.block
+    var per = event.permutationBeingPlaced
     
     if(to_string(player.axe_filling) !== ""){
         event.cancel = true
@@ -2309,6 +2332,18 @@ function beforeBlockPlace(event){
         player.axe_filling = ""
         chat("§e[小木斧]执行中...",[player])
         })
+    }
+
+    for(var t in limit){
+        if(player.hasTag(t)){
+            if(limit[t].pb){
+                if(array_has(limit[t].blocks,per.type.id)){
+                    event.cancel = true
+                    return
+                }
+            }
+            break
+        }
     }
     
     if(config.land.able){
@@ -2332,6 +2367,10 @@ function afterBlockPlace(event){
     var id = no_minecraft(block.typeId)
 
     emitEvent(player,"pb")
+    if(to_string(player.limiting) !== ""){
+        chat(`§e[管理系统]已退出录入！`,[player])
+    }
+    player.limiting = ""
     score_event(player,"pb",block.typeId)
     player.block_places = to_number(player.block_places) + 1
     if(array_has(config.log.allow,"pb")){
@@ -2357,6 +2396,18 @@ function afterBlockPlace(event){
 function beforeBlockBreak(event){
     var player = event.player
     var block = event.block
+
+    for(var t in limit){
+        if(player.hasTag(t)){
+            if(limit[t].bb){
+                if(array_has(limit[t].blocks,block.typeId)){
+                    event.cancel = true
+                    return
+                }
+            }
+            break
+        }
+    }
     
     if(config.land.able){
         var land = get_land_by_pos(player.dimension,block.center())
@@ -2795,6 +2846,11 @@ function afterPlayerInteractWithBlock(event){
             }
             server_log(0,"Edit Sign"+get_block_pos_di(block),get_player_path(player))
         }
+    }
+
+    if(array_has(config.log.allow,"ib")){
+        var text = `Interact Block ${get_block_pos_di(block)};Item : ${item.typeId}`
+        server_log(0,text,get_player_path(player))
     }
 
 
@@ -5973,7 +6029,7 @@ function cdBar(player){
         if(player.isSneaking){
             player.landing.mode = 0 
             player.landing.points = []
-            chat("§e[领地系统]已取消创建领地！")
+            chat("§e[领地系统]已取消创建领地！",[player])
         }
         else{
             if(player.landing.points.length === 2){
@@ -6814,6 +6870,36 @@ function opBar(player){
     ui.body = "欢迎来到管理界面"
     ui.btns = [
         {
+            text : "复制物品栏物品",
+            icon : ui_icon.copy,
+            func : ()=>{
+                var ui = new infoBar()
+                ui.title = "选择物品"
+                ui.cancel = ()=>{
+                    opBar(player)
+                }
+                ui.options("slot","选择物品栏物品",[
+                    "物品栏1",
+                    "物品栏2",
+                    "物品栏3",
+                    "物品栏4",
+                    "物品栏5",
+                    "物品栏6",
+                    "物品栏7",
+                    "物品栏8",
+                    "物品栏9",
+                ],0)
+                ui.show(player,(r)=>{
+                    var item = player.slots.getItem(r.slot)
+                    if(!un(item)){
+                        player.slots.addItem(item)
+                        chat("§e[管理系统]复制成功！",[player])
+                    }
+                    chat("§e[管理系统]该物品不存在，无法复制！",[player])
+                })
+            }
+        },
+        {
             text : "锁定游戏规则",
             icon : ui_icon.lock,
             func : ()=>{
@@ -7412,6 +7498,106 @@ function chatByBoardBar(player){
     })
 }
 
+function limitSetBar(player){
+    var ui = new btnBar()
+    ui.title = "编辑玩家方块行为限制"
+    ui.body = [
+        "使用方法：",
+        "添加标签，接下来选择该标签需要限制的行为",
+        "(为性能考虑，玩家含多个标签被限制时只会触发一个)"
+    ]
+    ui.btns = [{
+        text : "新增Tag",
+        icon : ui_icon.add,
+        func : ()=>{
+            var ui2 = new infoBar()
+            ui2.title = "新增Tag"
+            ui2.input("tag","要限制的玩家Tag","输入Tag","")
+            ui2.cancel = ()=>{
+                limitSetBar(player)
+            }
+            ui2.toggle("bb","限制挖掘方块",true)
+            ui2.toggle("ib","限制交互方块",true)
+            ui2.toggle("pb","限制放置方块",true)
+            ui2.show(player,(r)=>{
+                if(r.tag === ""){
+                    limitSetBar(player)
+                    return
+                }
+
+                limit[r.tag] = to_object(limit[r.tag])
+                limit[r.tag].blocks = to_array(limit[r.tag].blocks)
+                limit[r.tag].bb = r.bb
+                limit[r.tag].ib = r.ib
+                limit[r.tag].pb = r.pb
+                save_limit()
+                limitSetBar(player)
+            })
+        }
+    }]
+
+    for(var id in limit){
+        ui.btns.push({
+            text : id,
+            op : {id:id},
+            func : (op)=>{
+                checkLimit(player,op.id)
+            }
+        })
+    }
+
+    ui.show(player)
+
+}
+
+function checkLimit(player,tag){
+    var ui = new btnBar()
+    ui.title = "限制方块行为"
+    ui.body = [
+        `限制Tag - ${tag}`,
+        `限制挖掘：${limit[tag].bb}`,
+        `限制互动：${limit[tag].ib}`,
+        `限制放置：${limit[tag].pb}`,
+        "限制列表："
+    ]
+    ui.body = ui.body.concat(limit[tag].blocks)
+    ui.cancel = ()=>{
+        limitSetBar(player)
+    }
+    ui.btns = [{
+        text : "关闭",
+        icon : ui_icon.delete,
+        func : ()=>{
+            limitSetBar(player)
+        }
+    },{
+        text : "重置方块",
+        icon : ui_icon.brush,
+        func : ()=>{
+            limit[tag].blocks = []
+            save_limit()
+            limitSetBar(player)
+        }
+    },{
+        text : "录入方块",
+        icon : ui_icon.brush,
+        func : ()=>{
+            player.limiting = tag
+            chat("§e[管理系统]开始录入...\n§e放置任意方块退出录入",[player])
+        }
+    },{
+        text : "删除",
+        icon : ui_icon.rubbish,
+        func : ()=>{
+            delete limit[tag]
+            save_limit()
+            limitSetBar(player)
+        }
+    }]
+
+    ui.show(player)
+}
+
 function usfSettingBar(player){
     var ui = new btnBar()
     ui.title = "插件设置"
@@ -7419,6 +7605,12 @@ function usfSettingBar(player){
     ["欢迎来到插件设置界面",
      "此处管理插件所有功能"]
     ui.btns = [{
+        text : "玩家方块行为限制",
+        icon : ui_icon.stop,
+        func : ()=>{
+            limitSetBar(player)
+        }
+    },{
         text : "计分板聊天室",
         icon : ui_icon.player,
         func : ()=>{

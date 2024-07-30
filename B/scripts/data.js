@@ -111,6 +111,7 @@ export const usf_config = {
         clear_tag : false
     },
     "timer" : "",
+    "limit" : {},
 }
 
 export const data_format = {
@@ -126,7 +127,7 @@ export const data_format = {
         "di" , "kill" ,
         "die" , "sign" ,
         "lo"  , 
-        "chest" , "tp", "info",
+        "chest" , "tp", "info","ib",
     ],
     allow_blocks:[
         "minecraft:crafting_table",
