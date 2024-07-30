@@ -2,7 +2,7 @@ UnknowServerFramework (USF)
 
 Based on the original Minecraft Bedrock Edition Gametest
 
-Version: 0.6.25(B) Beta
+Version: 0.6.26(B) Beta
 
 Applicable for Minecraft BE BDS, personal archives, LLSE, and Realms survival assistance and server management plugins
 
