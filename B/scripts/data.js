@@ -1,6 +1,7 @@
 export const usf_config = {
     "name":{
-        "format" : "/name"
+        "format" : "/name",
+        "able":false
     },
     "hacker" : {
         allow : [ "chest" ],
@@ -112,11 +113,28 @@ export const usf_config = {
     },
     "timer" : "",
     "limit" : {},
+    "daily":{
+        able : false,
+        command : ""
+    }
 }
 
 export const data_format = {
+    //0-string 1-int 2-float
+    command_format : {
+        code : [0],
+        open : [0],
+        hotbar : [1],
+        name : [0,0],
+        knock : [2,2,2,2],
+        health : [0,2],
+        tag : [0],
+        fire : [2],
+        show : [0,0],
+        ui : [0]
+    },
     item_events : ["knock","runner","tp"],
-    score : ["die","di","bb","pb","damage","health","kill","join"],
+    score : ["die","di","bb","pb","damage","health","kill","join","buy","earn"],
     events : ["join","die","pos","chat","di","bb","pb","attack","sleep","kill"],
     land_permission : ["bb","ib","ie","pb"],
     hacker : [ "chest" ],
@@ -301,6 +319,7 @@ export const pictures = {
      "star" : ui_path + "filledStar.png" ,
      "glass" : ui_path + "magnifyingGlass.png" ,
      "coin" : ui_path + "MCoin.png" ,
+     "gift" : ui_path + "gift_square.png",
      "missing" : "textures/misc/missing_texture.png" ,
      "bed" : "textures/items/bed_red.png" ,
      "boat" : "textures/items/boat_oak.png" ,
