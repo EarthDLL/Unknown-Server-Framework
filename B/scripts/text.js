@@ -173,6 +173,7 @@ export var texts = {
     "Pictures.path" : "草径",
     "Pictures.snow" : "雪",
     "Pictures.hay" : "干草块",
+    "Pictures.gift" : "礼物",
     "Pictures.ice" : "冰",
     "Pictures.mushroom" : "菌丝",
     "Pictures.sand" : "沙石",

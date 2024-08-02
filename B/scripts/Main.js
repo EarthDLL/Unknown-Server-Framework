@@ -249,7 +249,7 @@ system_ids.tran = system.runInterval(()=>{
     tran_info.count = String(world.getAllPlayers().length)
     tran_info.items = String(item_count)
     
-    var d = new Date()
+    var d = get_date_object_China_time()
     tran_info.date = `${d.getFullYear()}.${d.getMonth()+1}.${d.getDate()}`
     tran_info.time = `${d.getHours()}:${d.getMinutes()}:${d.getSeconds()}`
     
@@ -547,7 +547,7 @@ system_ids.name = system.runInterval(()=>{
     for(var p of world.getAllPlayers()){
         change_player_name(p)
     }
-},100)
+},40)
 
 system_ids.test = system.runInterval(()=>{
     for(var player of world.getAllPlayers()){
@@ -1365,7 +1365,13 @@ function get_player_by_id(id){
 }
 
 function change_player_name(player){
+    if(to_string(player.info.name) !== ""){
+        player.nameTag = tran_text(player,player.info.name)
+        return
+    }
+    if(config.name.able){
     player.nameTag = tran_text(player,config.name.format)
+    }
 }
 
 function reset_player_data(player){
@@ -1451,6 +1457,9 @@ function get_chat_tag(player){
 }
 
 function set_chat_tag(p,tag){
+    if(tag === "Reset"){
+        tag = ""
+    }
     save_data("chat_tag",tag,p)
 }
 
@@ -1776,8 +1785,7 @@ function afterEntityHitBlock(event){
 
 
 function afterEntityHitEntity(event){
-    var hitter = event.damagingEntity
-   
+    var hitter = event.damagingEntity 
 }
 
 function chatBoardBar(player,block,creater){
@@ -1890,7 +1898,8 @@ function beforePlayerInteractWithBlock(event){
         }
     }
     
-    if(to_number(player.last_in , 0) !== system.currentTick){
+    if(to_number(player.last_in , 0) + 20 < system.currentTick ){
+    player.last_in = system.currentTick
 
     if(block.typeId === "minecraft:lectern"){
         var com = block.getComponent("minecraft:inventory").container
@@ -1937,6 +1946,7 @@ function beforePlayerInteractWithBlock(event){
                     player.chosen_blocks = player.chosen_blocks.slice(1,3)
                 }
                 setActionBar(player,"§e[小木斧]成功选定方块")
+                
             }else{
                 system.run(()=>{
                     axeBar(player)
@@ -2042,9 +2052,8 @@ function beforePlayerInteractWithBlock(event){
             event.cancel = true
         }
     }
-
     }
-    player.last_in = system.currentTick
+    
 
 }
 
@@ -2771,12 +2780,13 @@ function get_player_hand_item(player){
     return player.slots.getItem(player.selectedSlotIndex)
 }
 
+//因为懒得改策略文件的逻辑了，offhand其实是主手
 function get_player_offhand_item(player){
-    return player.getComponent("minecraft:equippable").getEquipment("Offhand")
+    return player.slots.getItem(player.selectedSlotIndex)
 }
 
 function get_player_offhand_slot(player){
-    var slot = player.getComponent("minecraft:equippable").getEquipmentSlot("Offhand")
+    var slot = player.slots.getSlot(player.selectedSlotIndex)
     if(un(slot) || !slot.isValid()){
         return undefined
     }
@@ -2848,7 +2858,7 @@ function afterPlayerInteractWithBlock(event){
         }
     }
 
-    if(array_has(config.log.allow,"ib")){
+    if(array_has(config.log.allow,"ib") && !un(item)){
         var text = `Interact Block ${get_block_pos_di(block)};Item : ${item.typeId}`
         server_log(0,text,get_player_path(player))
     }
@@ -2947,6 +2957,8 @@ function beforePlayerLeave(event){
     var pos = player.location
     pos.dimension = player.dimension
 
+    save_player_info(player)
+
     system.run(()=>{
         if(array_has(config.log.allow,"jl")){
             server_log(0,"Leave",get_player_path({name:name}))
@@ -2992,6 +3004,9 @@ function scriptEventReceive(event){
     }
     
     switch(id){
+        case "command":
+            run_special_command(entity,message.split(" "))
+            break
         case "reset":
             log("重置命令已发出，请于30秒内运行/reload命令即可重置owner")
             save_data("reset",String(Date.now()))
@@ -3019,6 +3034,106 @@ function scriptEventReceive(event){
             break
         
         }
+}
+
+function run_special_command(player,words){
+    array_clear(words,"")
+    if(words.length == 0){return}
+    if(un(data_format.command_format[words[0]])){
+        return
+    }
+    if(data_format.command_format[words[0]].length > words.length){
+        return
+    }
+
+    var things = []
+    for(var i=0 ; i<data_format.command_format[words[0]].length;i++){
+        switch(data_format.command_format[words[0]][i]){
+            case 0:
+                things.push(to_string(words[i+1]))
+                break
+            case 1:
+                things.push(to_number(parseInt(words[i+1])))
+                break
+            case 2:
+                things.push(to_number(parseFloat(words[i+1])))
+                break
+        }
+    }
+    switch(words[0]){
+        case "code":
+            if(things[0] !== ""){
+                run_code(player,things[0])
+            }
+            break
+        case "open":
+            open_page(player,things[0])
+            break
+        case "hotbar":
+            if(array_has([1,2,3,4,5,6,7,8,9],things[0])){
+                player.selectedSlotIndex = things[0]-1
+            }
+            break
+        case "name":
+            switch(things[0]){
+                case "set":
+                    player.nameTag = tran_text(player,things[1])
+                    break
+                case "format":
+                    player.info.name = (things[1] === "Reset")? "" : things[1];
+                    break
+            }
+            break
+        case "knock":
+            player.applyKnockback(things[0],things[1],things[2],things[3])
+            break
+        case "health":
+            switch(things[0]){
+                case "set":
+                    player.getComponent("minecraft:health").setCurrentValue(things[1])
+                    break
+                case "add":
+                    var com = player.getComponent("minecraft:health")
+                    com.setCurrentValue(com.currentValue+things[1])
+            }
+            break
+        case "tag":
+            set_chat_tag(player,things[0])
+            break
+        case "fire":
+            player.setOnFire(things[0])
+            break
+        case "show":
+            switch(things[0]){
+                case "chat":
+                    chat(things[1],[player],true)
+                    break
+                case "actionbar":
+                    var com = player.getComponent("minecraft:health")
+                    setActionBar(player,things[1],true)
+                    break
+            }
+            break
+        case "ui":
+            var d = get_data("minecraft:overworld."+things[0])
+            if(d !== ""){
+                d = to_object(parse_json(d))
+                if(is_string(d.chest)){
+                    get_store_item(d.chest,d.slot,(item)=>{
+                        if(!un(item)){
+                            var data = to_object(parse_json(get_data("data",item)))
+                            if(is_string(data.title)){
+                                system.run(()=>{
+                                    showConfigBar(player,data,"")
+                                })
+                            }
+                        }
+                    })
+                    return
+                }
+            }
+            break
+    }
 }
 
 
@@ -3668,7 +3783,7 @@ function get_score(ob,player){
     try{
         s = ob.getScore(player)
     }catch(err){}
-    return s
+    return to_number(s)
 }
 
 function tranBar(player){
@@ -5041,34 +5156,34 @@ function storeBar(player,type = 0,group = ""){
 
 function update_good(g,force = false){
     var date = new Date(g.updated)
-    var now = new Date(Date.now())
+    var now = get_date_object_China_time()
     if(force){
         g.last = g.global_count
-        g.updated = Date.now()
+        g.updated = get_date_now_China_time()
     }
     switch(g.update_type){
         case 1:
-            if(Date.now() - g.updated >= g.update_time * 1000){
+            if(get_date_now_China_time() - g.updated >= g.update_time * 1000){
                 g.last = g.global_count
-                g.updated = Date.now()
+                g.updated = get_date_now_China_time()
             }
         break
         case 2:
             if(now.getHours() !== date.getHours() || now.getDate() !== date.getDate() || date.getMonth() !== now.getMonth()){
                 g.last = g.global_count
-                g.updated = Date.now()
+                g.updated = get_date_now_China_time()
             }
         break
         case 3:
             if(now.getDate() !== date.getDate() || date.getMonth() !== now.getMonth()){
                 g.last = g.global_count
-                g.updated = Date.now()
+                g.updated = get_date_now_China_time()
             }
         break
         case 4:
             if(date.getMonth() !== now.getMonth()){
                 g.last = g.global_count
-                g.updated = Date.now()
+                g.updated = get_date_now_China_time()
             }
         break
     }
@@ -5279,6 +5394,7 @@ function dealOrderBar(player,good,data = {count : 1}){
             if(container_remove(con,good.item,data.count)){
                 var board = world.scoreboard.getObjective(good.money)
                 board_add(player,board,good.price * data.count)
+                score_event(player,"earn","",good.price * data.count)
             }else{
                 chat("§e[商店系统]物品不足,收购失败！",[player])
             }
@@ -5289,6 +5405,7 @@ function dealOrderBar(player,good,data = {count : 1}){
                 c = data.count * good.price
             }
             if(deal_money(player,good,c)){
+                score_event(player,"buy","",good.price * data.count)
                 if(good.code !== ""){
                     for(var i=0;i<data.count;i++){
                         run_code(player,good.code)
@@ -5699,6 +5816,36 @@ function showConfigBar(player,data,group = ""){
     ui.show(player)
 }
 
+function open_page(player,page){
+    switch(page){
+        case "cd":
+            cdBar(player)
+            break
+        case "pos":
+            posBar(player)
+            break
+        case "chat":
+            setChatBar(player)
+            break
+        case "land":
+            landBar(player,player)
+            break
+        case "group":
+            groupsBar(player)
+            break
+        case "store":
+            storeBar(player,0,"")
+            break
+        case "tran":
+            tranBar(player)
+            break
+        case "board":
+            show_board(player,null,false)
+            break
+        
+    }
+}
+
 function run_btn(player,btn,data,group){
     switch(btn.type){
         case 0:
@@ -6018,7 +6165,6 @@ function editConfigSecondBar(player,slot,data){
 }
 
 function cdBar(player){
-
     if(Date.now() - to_number(player.last_cd) < 1000){
         return
     }else{
@@ -6099,6 +6245,26 @@ function cdBar(player){
             }
         })
     }
+    if(config.daily.able){
+        var now = get_date_object_China_time()
+        var date = new Date(to_number(player.info.daily,0))
+        if(date.getFullYear() !== now.getFullYear() || date.getMonth() !== now.getMonth() || now.getDate() !== date.getDate()){
+            ui.btns.push({
+                text : "签到",
+                icon : pictures.gift,
+                func :()=>{
+                    var commands = to_array(parse_json(config.daily.command))
+                    for(var i=0;i<commands.length;i++){
+                        try{
+                            player.runCommand(commands[i])
+                        }catch(err){}
+                    }
+                    player.info.daily = get_date_now_China_time()
+                    save_player_info(player)
+                }
+            })
+        }
+    }
 
     if(config.store.able){
         ui.btns.push({
@@ -6149,6 +6315,18 @@ function cdBar(player){
         })
     }
     ui.show(player)
+}
+
+function get_date_now_China_time(){
+    var d = new Date()
+    d = new Date(Date.now() + (8 - d.getTimezoneOffset())*3600000)
+    return d.getTime()
+}
+
+function get_date_object_China_time(){
+    var d = new Date()
+    d = new Date(Date.now() + (8 - d.getTimezoneOffset())*3600000)
+    return d
 }
 
 function usfTickCheck(player){
@@ -6894,8 +7072,9 @@ function opBar(player){
                     if(!un(item)){
                         player.slots.addItem(item)
                         chat("§e[管理系统]复制成功！",[player])
-                    }
+                    }else{
                     chat("§e[管理系统]该物品不存在，无法复制！",[player])
+                    }
                 })
             }
         },
@@ -7191,7 +7370,7 @@ function managerFloat(player){
                 bat : bat
             },
             func : (op)=>{
-                editFloat(player,op.bat)
+                editFloat(player,op.bat,false)
             }
         })
     }
@@ -7201,13 +7380,13 @@ function managerFloat(player){
         icon : ui_icon.add,
         func : ()=>{
             var bat = player.dimension.spawnEntity("minecraft:bat<usf:text>",player.location)
-            editFloat(player,bat)
+            editFloat(player,bat,true)
         }
     })
     ui.show(player)
 }
 
-function editFloat(player,bat){
+function editFloat(player,bat,first){
     var text = get_data("text",bat)
     var name = get_data("name",bat)
     
@@ -7215,7 +7394,9 @@ function editFloat(player,bat){
     var ui = new infoBar()
     ui.title = "编辑悬浮字"
     ui.cancel = ()=>{
-        bat.remove()
+        if(first){
+            bat.remove()
+        }
         managerFloat(player)
     }
     ui.busy = ()=>{
@@ -7605,6 +7786,12 @@ function usfSettingBar(player){
     ["欢迎来到插件设置界面",
      "此处管理插件所有功能"]
     ui.btns = [{
+        text : "每日签到设置",
+        icon : ui_icon.stick,
+        func : ()=>{
+            usfFunctionBar(player,"daily")
+        }
+    },{
         text : "玩家方块行为限制",
         icon : ui_icon.stop,
         func : ()=>{
@@ -8276,7 +8463,7 @@ function editScorePage(player,tag,page,first = false){
     ui.title = "编辑统计"
     ui.input("name","备注名","输入备注名" ,page.name)
     ui.options("type","统计类型",[
-        "玩家死亡","玩家切换维度","破坏方块","放置方块","造成伤害","生命值","杀死实体","加入游戏"
+        "玩家死亡","玩家切换维度","破坏方块","放置方块","造成伤害","生命值","杀死实体","加入游戏","购买物品金额","收购物品金额"
     ],array_has(data_format.score,page.type)?array_index(data_format.score,page.type):0)
     
     ui.input("board","记分版ID","输入记分版",page.board)
@@ -8416,6 +8603,11 @@ function usfFunctionBar(player , type){
             ui.input("board","转账的记分版，多个之间用英文分号;分隔","输入记分版ID",config.tran.board)
             ui.range("free","手续费(百分比)",0,200,1,config.tran.free)
             break
+        case "daily":
+            ui.title = "每日签到设置"
+            ui.toggle("able","每日签到[关闭 | 开启]",config.daily.able)
+            ui.input("command",'命令\n格式：["命令1","命令2"]',"输入命令",config.daily.command)
+            break
         case "time":
             ui.title = "游戏时间统计"
             ui.toggle("able","游戏时间统计[关闭 | 开启]\n游戏时间的记分版id为time\n显示时间的记分版id为time_show",config.time.able)
@@ -8439,6 +8631,7 @@ function usfFunctionBar(player , type){
         case "name":
             ui.title = "玩家名格式设置"
             var text = get_text("tran_text") + "\n\n玩家名格式设置"
+            ui.toggle("able","[禁用|启用]\n注意：与特殊命令name可能会冲突",config.name.able)
             ui.input("format",text,"输入内容",config.name.format)
             break
         case "pos":
@@ -8496,6 +8689,12 @@ function usfFunctionBar(player , type){
                 config.tran.able = r.able
                 config.tran.board = r.board
                 config.tran.free = Math.round(r.free)
+                save_config()
+                usfSettingBar(player)
+                break
+            case "daily":
+                config.daily.able = r.able
+                config.daily.command = r.command
                 save_config()
                 usfSettingBar(player)
                 break
@@ -8592,6 +8791,7 @@ function usfFunctionBar(player , type){
                 break
             case "name":
                 config.name.format = r.format
+                config.name.able = r.able
                 save_config()
                 usfSettingBar(player)
                 break
