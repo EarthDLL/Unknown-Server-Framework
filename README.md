@@ -18,13 +18,15 @@
 __https://www.minebbs.com/threads/usf.17109/__  
 
 USF文档站  
-主域名：http://usf.earthdll.cn/?project  
-备用：http://usf.gtemc.cn/?project  
-(备用域名)
-https://github.com/dyf189/Unknow-Server-Frame_Help-Docs
-(Github开源，DDos和关服时备用)  
-第三方文档：https://usf.7b7t.eu.org  
+USF文档站(官方站点)
+主域名：https://www.usfpack.site/
+——
+https://usframeteam.github.io/
+(GithubPage，稳定访问，DDOS关服时备份)
+一般问题文档里都有，来群里问也没有用
 
+USF下载站
+https://d.usfpack.site/
 
 已实现的系统/功能：  
 传送系统、群组系统、领地系统、公告功能、管理功能  
